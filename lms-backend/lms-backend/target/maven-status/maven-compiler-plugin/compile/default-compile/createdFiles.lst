@@ -98,6 +98,7 @@ com\zenelait\lms\repository\ForumPostRepository.class
 com\zenelait\lms\scheduler\BatchStatusScheduler.class
 com\zenelait\lms\controller\PaymentController.class
 com\zenelait\lms\exception\ResourceNotFoundException.class
+com\zenelait\lms\entity\OtpVerification$OtpVerificationBuilder.class
 com\zenelait\lms\dto\request\AdminRegisterParentRequest.class
 com\zenelait\lms\repository\AdminCertificateRepository.class
 com\zenelait\lms\entity\Course$CourseStatus.class
@@ -174,6 +175,7 @@ com\zenelait\lms\entity\Certificate$CertificateBuilder.class
 com\zenelait\lms\repository\MeetingParticipantRepository.class
 com\zenelait\lms\entity\UltraSuperAdmin.class
 com\zenelait\lms\repository\MeetingAuditLogRepository.class
+com\zenelait\lms\entity\OtpVerification.class
 com\zenelait\lms\entity\MeetingResponse.class
 com\zenelait\lms\repository\ParentWalletRepository.class
 com\zenelait\lms\dto\response\AuthResponse$AuthResponseBuilder.class
@@ -191,6 +193,7 @@ com\zenelait\lms\entity\Announcement.class
 com\zenelait\lms\entity\OrganizationSubscription$OrganizationSubscriptionBuilder.class
 com\zenelait\lms\entity\AssignmentSubmission$SubmissionStatus.class
 com\zenelait\lms\entity\MeetingAuditLog$MeetingAuditLogBuilder.class
+com\zenelait\lms\repository\OtpVerificationRepository.class
 com\zenelait\lms\entity\Organization.class
 com\zenelait\lms\entity\Assignment.class
 com\zenelait\lms\entity\AssessmentQuestion$AssessmentQuestionBuilder.class

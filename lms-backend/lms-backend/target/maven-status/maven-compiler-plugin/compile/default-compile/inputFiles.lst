@@ -30,6 +30,7 @@ C:\Users\PRAVEEN\Documents\lms_complete_folder\lms-backend\lms-backend\src\main\
 C:\Users\PRAVEEN\Documents\lms_complete_folder\lms-backend\lms-backend\src\main\java\com\zenelait\lms\dto\request\DepartmentRequest.java
 C:\Users\PRAVEEN\Documents\lms_complete_folder\lms-backend\lms-backend\src\main\java\com\zenelait\lms\repository\ContactMessageRepository.java
 C:\Users\PRAVEEN\Documents\lms_complete_folder\lms-backend\lms-backend\src\main\java\com\zenelait\lms\config\SecurityConfig.java
+C:\Users\PRAVEEN\Documents\lms_complete_folder\lms-backend\lms-backend\src\main\java\com\zenelait\lms\repository\OtpVerificationRepository.java
 C:\Users\PRAVEEN\Documents\lms_complete_folder\lms-backend\lms-backend\src\main\java\com\zenelait\lms\service\admin\DepartmentService.java
 C:\Users\PRAVEEN\Documents\lms_complete_folder\lms-backend\lms-backend\src\main\java\com\zenelait\lms\entity\OrganizationSubscription.java
 C:\Users\PRAVEEN\Documents\lms_complete_folder\lms-backend\lms-backend\src\main\java\com\zenelait\lms\controller\TimetableController.java
@@ -80,6 +81,7 @@ C:\Users\PRAVEEN\Documents\lms_complete_folder\lms-backend\lms-backend\src\main\
 C:\Users\PRAVEEN\Documents\lms_complete_folder\lms-backend\lms-backend\src\main\java\com\zenelait\lms\controller\MeetingController.java
 C:\Users\PRAVEEN\Documents\lms_complete_folder\lms-backend\lms-backend\src\main\java\com\zenelait\lms\entity\TeacherReview.java
 C:\Users\PRAVEEN\Documents\lms_complete_folder\lms-backend\lms-backend\src\main\java\com\zenelait\lms\entity\UltraSuperAdmin.java
+C:\Users\PRAVEEN\Documents\lms_complete_folder\lms-backend\lms-backend\src\main\java\com\zenelait\lms\entity\OtpVerification.java
 C:\Users\PRAVEEN\Documents\lms_complete_folder\lms-backend\lms-backend\src\main\java\com\zenelait\lms\repository\FeeRepository.java
 C:\Users\PRAVEEN\Documents\lms_complete_folder\lms-backend\lms-backend\src\main\java\com\zenelait\lms\dto\request\OrganizationRequest.java
 C:\Users\PRAVEEN\Documents\lms_complete_folder\lms-backend\lms-backend\src\main\java\com\zenelait\lms\service\mail\EmailService.java

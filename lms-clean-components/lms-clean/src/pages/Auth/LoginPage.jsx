@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { T } from "../../assets/styles/theme";
 import { Btn, Modal, Input, Select } from "../../components/UI";
-import { login, registerUser, getActiveDepartments, getOrganizations } from "../../api/auth";
+import { login, registerUser, getActiveDepartments, getOrganizations, forgotPassword, resetPassword } from "../../api/auth";
 
 // ─── ROLE LOGIN CARDS ─────────────────────────────────────────────────────────
 const ROLES = [
@@ -197,6 +197,124 @@ const RegModal = ({ role, onClose, onSuccess }) => {
   );
 };
 
+// ─── FORGOT PASSWORD MODAL ───────────────────────────────────────────────────
+const ForgotModal = ({ onClose }) => {
+  const [step, setStep] = useState(1); // 1 = Send OTP, 2 = Verify & Reset
+  const [role, setRole] = useState("STUDENT");
+  const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSendOtp = async () => {
+    if (!email) { alert("Please enter your email address."); return; }
+    try {
+      setLoading(true);
+      await forgotPassword(email, role);
+      alert("✅ OTP sent to your email successfully!");
+      setStep(2);
+    } catch (err) {
+      alert(err.message || "Failed to send OTP. Please check your details.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!otp) { alert("Please enter the OTP."); return; }
+    if (!newPassword) { alert("Please enter a new password."); return; }
+    if (newPassword !== confirmPassword) { alert("Passwords do not match."); return; }
+    if (newPassword.length < 8) { alert("Password must be at least 8 characters."); return; }
+
+    try {
+      setLoading(true);
+      await resetPassword(email, role, otp, newPassword);
+      alert("🎉 Password reset successful! You can now log in with your new password.");
+      onClose();
+    } catch (err) {
+      alert(err.message || "Failed to reset password.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal open title="Forgot Password" onClose={onClose}>
+      <p style={{ fontSize: 12, color: T.muted, marginBottom: 16 }}>
+        Reset your account password using an OTP sent to your registered Gmail.
+      </p>
+
+      {step === 1 ? (
+        <>
+          <Select
+            label="Your Role *"
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            options={[
+              { value: "STUDENT", label: "Student" },
+              { value: "TEACHER", label: "Teacher" },
+              { value: "PARENT", label: "Parent" },
+              { value: "ADMIN", label: "Admin" },
+              { value: "ULTRA_SUPER_ADMIN", label: "Ultra Super Admin" },
+            ]}
+          />
+          <Input
+            label="Email Address *"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Enter your registered email"
+          />
+          <Btn variant="primary" full size="lg" onClick={handleSendOtp} disabled={loading}>
+            {loading ? "Sending OTP…" : "Send Verification OTP →"}
+          </Btn>
+        </>
+      ) : (
+        <>
+          <div style={{ background: "rgba(255,255,255,0.05)", padding: 12, borderRadius: 8, marginBottom: 16 }}>
+            <p style={{ margin: 0, fontSize: 13, color: "#fff" }}>
+              Sent OTP code to: <strong>{email}</strong>
+            </p>
+            <p style={{ margin: "4px 0 0", fontSize: 11, color: T.muted }}>
+              Role: {role}
+            </p>
+          </div>
+          <Input
+            label="Verification OTP *"
+            type="text"
+            value={otp}
+            onChange={(e) => setOtp(e.target.value)}
+            placeholder="6-digit code"
+          />
+          <Input
+            label="New Password *"
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            placeholder="Min 8 characters"
+          />
+          <Input
+            label="Confirm New Password *"
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            placeholder="Repeat new password"
+          />
+          <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+            <Btn variant="ghost" full size="lg" onClick={() => setStep(1)} disabled={loading}>
+              ← Back
+            </Btn>
+            <Btn variant="primary" full size="lg" onClick={handleResetPassword} disabled={loading}>
+              {loading ? "Resetting…" : "Reset Password →"}
+            </Btn>
+          </div>
+        </>
+      )}
+    </Modal>
+  );
+};
+
 // ─── SHARED LOGIN FORM (used in both card & mobile panel) ─────────────────────
 const LoginForm = ({ role, credentials, onFieldChange, onLoginClick, onRegisterClick, loadingRole }) => {
   const textColor = (role.key === "admin" || role.key === "parent") ? "#000" : "#fff";
@@ -260,6 +378,7 @@ const LoginPage = ({ onLoginSuccess, onBack, onUltraAdminLogin }) => {
   const [pinned,      setPinned]      = useState(null);   // click-pinned (desktop)
   const [mobileRole,  setMobileRole]  = useState("");     // dropdown (mobile)
   const [modal,       setModal]       = useState(null);
+  const [forgotModal, setForgotModal] = useState(false);
   const [loadingRole, setLoadingRole] = useState(null);
   const [credentials, setCredentials] = useState({
     student: { email: "", password: "" },
@@ -456,7 +575,11 @@ const LoginPage = ({ onLoginSuccess, onBack, onUltraAdminLogin }) => {
         <div style={{ display: "flex", gap: 20, marginTop: 28, flexWrap: "wrap", justifyContent: "center" }}>
           {["← Back to Website", "Forgot Password?", "Need Help?", "Privacy Policy"].map(l => (
             <button key={l}
-              onClick={l === "← Back to Website" ? onBack : undefined}
+              onClick={
+                l === "← Back to Website" ? onBack :
+                l === "Forgot Password?" ? () => setForgotModal(true) :
+                undefined
+              }
               style={{ background: "none", border: "none", color: T.muted, fontSize: 12, cursor: "pointer" }}
             >{l}</button>
           ))}
@@ -474,6 +597,11 @@ const LoginPage = ({ onLoginSuccess, onBack, onUltraAdminLogin }) => {
         <RegModal role={modal} onClose={() => setModal(null)}
           onSuccess={(auth) => { setModal(null); onLoginSuccess(auth); }}
         />
+      )}
+
+      {/* Forgot Password Modal */}
+      {forgotModal && (
+        <ForgotModal onClose={() => setForgotModal(false)} />
       )}
 
       {/* Responsive breakpoint styles */}

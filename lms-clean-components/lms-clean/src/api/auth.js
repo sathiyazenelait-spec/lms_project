@@ -623,6 +623,20 @@ export async function usaTriggerExpiryCheck() {
 
 export async function usaSendRenewalReminder(subId) {
   return request(`/ultra-super-admin/subscriptions/${subId}/remind`, {
-    method: "POST"
+    method: "POST",
+  });
+}
+
+export async function forgotPassword(email, role) {
+  return request("/auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify({ email, role }),
+  });
+}
+
+export async function resetPassword(email, role, otp, newPassword) {
+  return request("/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify({ email, role, otp, newPassword }),
   });
 }

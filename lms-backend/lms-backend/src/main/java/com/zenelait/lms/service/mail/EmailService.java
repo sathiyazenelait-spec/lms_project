@@ -279,4 +279,31 @@ public class EmailService {
             </div>
             """.formatted(warningColor, orgName, daysText, expiryDate, orgName, planName, expiryDate, daysLeft);
     }
+
+    public String forgotPasswordOtpEmail(String name, String otp) {
+        return """
+            <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f9f9f9;border-radius:10px;overflow:hidden;">
+              <div style="background:linear-gradient(135deg,#7c3aed,#06b6d4);padding:28px 32px;">
+                <h2 style="color:#fff;margin:0;font-size:22px;">🎓 ZenelaitLMS</h2>
+                <p style="color:rgba(255,255,255,0.85);margin:6px 0 0;">Password Reset Verification Code</p>
+              </div>
+              <div style="padding:28px 32px;background:#fff;">
+                <h3 style="color:#1e1b4b;margin-top:0;">Hello %s,</h3>
+                <p style="color:#374151;line-height:1.6;">
+                  We received a request to reset your password. Use the verification code (OTP) below to complete your password reset:
+                </p>
+                <div style="background:#f3f4f6;border-radius:8px;padding:20px;text-align:center;margin:24px 0;">
+                  <span style="font-size:32px;font-weight:bold;letter-spacing:6px;color:#7c3aed;">%s</span>
+                </div>
+                <p style="color:#ef4444;font-weight:600;font-size:14px;">
+                  This code is valid for 10 minutes. Do not share this code with anyone.
+                </p>
+                <p style="color:#6b7280;font-size:13px;margin-top:24px;">
+                  If you did not request a password reset, you can safely ignore this email.
+                </p>
+                <p style="color:#6b7280;font-size:13px;margin-top:12px;">ZenelaitLMS Operations Team</p>
+              </div>
+            </div>
+            """.formatted(name, otp);
+    }
 }
