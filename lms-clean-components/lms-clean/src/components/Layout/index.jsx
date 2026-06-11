@@ -7,6 +7,9 @@ import { useStudentProfile } from "../../context/StudentProfileContext";
 import { useTeacherProfile } from "../../context/TeacherProfileContext";
 import { useParentProfile }  from "../../context/ParentProfileContext";
 import { useState, useEffect } from "react";
+import {
+  getStudentNotifications, getAdminNotifications, getTeacherNotifications, getParentNotifications
+} from "../../api/auth";
 // ── Safe context hooks — only call when provider is actually mounted ───────────
 const useSafeStudentProfile = () => {
   try { return useStudentProfile(); } catch { return null; }
@@ -90,6 +93,7 @@ export const SIDEBARS = {
     { key: "departments",    icon: "🏢",  label: "Departments"        },
     { key: "courses",        icon: "📚",  label: "Course Management"  },
     { key: "batches",        icon: "🏫",  label: "Batch Management"   },
+    { key: "leaves",         icon: "🌴",  label: "Leaves & Working Days" },
     { key: "timetable",      icon: "📅",  label: "Timetable"          },
     { section: "Finance" },
     { key: "fees",           icon: "💳",  label: "Fee Setup & Manage" },
@@ -226,6 +230,9 @@ export const Sidebar = ({ role, active, onNav, onLogout, isMobile, open, setOpen
       if (item.key === "subscription" && !isSuperAdmin) {
         return;
       }
+      if (item.key === "revenue" && !isSuperAdmin) {
+        return;
+      }
       const requiredFeature = KEY_FEATURE_MAP[item.key];
       if (requiredFeature && !enabledFeatures.includes(requiredFeature)) {
         return;
@@ -332,36 +339,247 @@ export const Sidebar = ({ role, active, onNav, onLogout, isMobile, open, setOpen
 };
 
 // ─── DASHBOARD HEADER ─────────────────────────────────────────────────────────
-export const DashHeader = ({ role, page, onNav }) => {
+export const DashHeader = ({ role, page, onNav, isMobile, setOpen }) => {
   const color = ROLE_COLORS[role];
   const { name } = useRoleProfile(role);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem("zenelait-theme") || "dark";
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("zenelait-theme", theme);
+    window.dispatchEvent(new CustomEvent("zenelait-theme-changed", { detail: theme }));
+  }, [theme]);
+
+  useEffect(() => {
+    const handleThemeChange = (e) => {
+      setTheme(e.detail);
+    };
+    window.addEventListener("zenelait-theme-changed", handleThemeChange);
+    return () => window.removeEventListener("zenelait-theme-changed", handleThemeChange);
+  }, []);
+
+  useEffect(() => {
+    const fetchUnread = async () => {
+      try {
+        let notifs = [];
+        if (role === "student") notifs = await getStudentNotifications();
+        else if (role === "admin") notifs = await getAdminNotifications();
+        else if (role === "teacher") notifs = await getTeacherNotifications();
+        else if (role === "parent") notifs = await getParentNotifications();
+        
+        const arr = Array.isArray(notifs) ? notifs : (notifs?.data || []);
+        const unread = arr.filter(n => !n.read).length;
+        setUnreadCount(unread);
+      } catch (e) {
+        console.error("Failed to load header notifications count:", e);
+      }
+    };
+
+    fetchUnread();
+    const timer = setInterval(fetchUnread, 30000);
+    return () => clearInterval(timer);
+  }, [role]);
 
   return (
-    <header style={{ position: "fixed", top: 0, left: 240, right: 0, height: 60,
-      background: "rgba(6,4,15,.9)", backdropFilter: "blur(20px)",
+    <header style={{
+      position: "fixed", top: 0, left: isMobile ? 0 : 240, right: 0, height: 60,
+      background: T.headerBg, backdropFilter: "blur(20px)",
       borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center",
-      justifyContent: "space-between", padding: "0 24px", zIndex: 100 }}>
-      <div>
-        <div style={{ fontSize: 16, fontWeight: 800, fontFamily: "Syne" }}>{page}</div>
-        <div style={{ fontSize: 11, color: T.muted }}>Home / {page}</div>
+      justifyContent: "space-between", padding: isMobile ? "0 16px" : "0 24px", zIndex: 100
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        {isMobile && (
+          <button
+            onClick={() => setOpen(prev => !prev)}
+            style={{
+              background: "rgba(255,255,255,0.06)",
+              border: `1px solid ${T.border}`,
+              color: T.text,
+              borderRadius: 8,
+              width: 36,
+              height: 36,
+              fontSize: 18,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            ☰
+          </button>
+        )}
+        <div>
+          <div style={{ fontSize: isMobile ? 14 : 16, fontWeight: 800, fontFamily: "Syne" }}>{page}</div>
+          <div style={{ fontSize: 10, color: T.muted }}>Home / {page}</div>
+        </div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-        {["🔔", "🔍"].map((icon, i) => (
-          <div key={i}
-            style={{ width: 36, height: 36, borderRadius: 9, background: T.bg3,
-              border: `1px solid ${T.border}`, display: "flex", alignItems: "center",
-              justifyContent: "center", cursor: "pointer", fontSize: 15, transition: "all .2s" }}
-            onMouseEnter={e => e.currentTarget.style.borderColor = color}
-            onMouseLeave={e => e.currentTarget.style.borderColor = T.border}
-          >{icon}</div>
-        ))}
+        {showSearch && (
+          <div style={{ position: "relative" }}>
+            <input
+              type="text"
+              placeholder="Search pages (e.g. Profile, Courses)..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === "Enter") {
+                  const query = searchQuery.trim().toLowerCase();
+                  if (query) {
+                    const matchedItem = (SIDEBARS[role] || []).find(
+                      item => item.label && item.label.toLowerCase().includes(query)
+                    );
+                    if (matchedItem && matchedItem.key) {
+                      onNav(matchedItem.key);
+                    } else {
+                      localStorage.setItem("zenelait-search-query", searchQuery.trim());
+                      window.dispatchEvent(new CustomEvent("zenelait-search", { detail: searchQuery.trim() }));
+                      if (role === "student") onNav("courses");
+                      else if (role === "teacher") onNav("courses");
+                      else if (role === "parent") onNav("children");
+                      else if (role === "admin") onNav("users");
+                    }
+                  }
+                  setShowSearch(false);
+                  setSearchQuery("");
+                }
+              }}
+              style={{
+                background: T.bg3,
+                border: `1.5px solid ${color}`,
+                borderRadius: 8,
+                padding: "6px 12px",
+                fontSize: 12,
+                color: T.text,
+                outline: "none",
+                width: isMobile ? 140 : 210,
+                transition: "all 0.3s ease",
+                fontFamily: "DM Sans"
+              }}
+              autoFocus
+            />
+            {searchQuery.trim() && (
+              <div style={{
+                position: "absolute",
+                top: 42,
+                right: 0,
+                background: T.card2,
+                border: `1px solid ${T.border}`,
+                borderRadius: 10,
+                width: 220,
+                maxHeight: 250,
+                overflowY: "auto",
+                zIndex: 999,
+                boxShadow: "0 10px 25px rgba(0,0,0,0.5)",
+                padding: "6px 0"
+              }}>
+                {(SIDEBARS[role] || [])
+                  .filter(item => item.label && item.label.toLowerCase().includes(searchQuery.toLowerCase()))
+                  .map(s => (
+                    <div
+                      key={s.key}
+                      onClick={() => {
+                        onNav(s.key);
+                        setShowSearch(false);
+                        setSearchQuery("");
+                      }}
+                      style={{
+                        padding: "8px 16px",
+                        fontSize: 12.5,
+                        color: T.muted,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        transition: "all 0.15s"
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.background = `${color}15`;
+                        e.currentTarget.style.color = color;
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.background = "transparent";
+                        e.currentTarget.style.color = T.muted;
+                      }}
+                    >
+                      <span>{s.icon}</span>
+                      <span>{s.label}</span>
+                    </div>
+                  ))}
+                {(SIDEBARS[role] || [])
+                  .filter(item => item.label && item.label.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && (
+                    <div style={{ padding: "8px 16px", fontSize: 12, color: T.muted, textAlign: "center" }}>
+                      No pages matched
+                    </div>
+                  )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {!isMobile && (
+          <>
+            {/* Search Icon */}
+            <div
+              onClick={() => setShowSearch(prev => !prev)}
+              style={{ width: 36, height: 36, borderRadius: 9, background: T.bg3,
+                border: `1px solid ${T.border}`, display: "flex", alignItems: "center",
+                justifyContent: "center", cursor: "pointer", fontSize: 15, transition: "all .2s", position: "relative" }}
+              onMouseEnter={e => e.currentTarget.style.borderColor = color}
+              onMouseLeave={e => e.currentTarget.style.borderColor = T.border}
+            >
+              🔍
+            </div>
+
+            {/* Notification Icon */}
+            <div
+              onClick={() => onNav("notifications")}
+              style={{ width: 36, height: 36, borderRadius: 9, background: T.bg3,
+                border: `1px solid ${T.border}`, display: "flex", alignItems: "center",
+                justifyContent: "center", cursor: "pointer", fontSize: 15, transition: "all .2s", position: "relative" }}
+              onMouseEnter={e => e.currentTarget.style.borderColor = color}
+              onMouseLeave={e => e.currentTarget.style.borderColor = T.border}
+            >
+              🔔
+              {unreadCount > 0 && (
+                <span style={{
+                  position: "absolute", top: -4, right: -4, background: T.accentR, color: "#fff",
+                  fontSize: 9, fontWeight: 900, minWidth: 16, height: 16, borderRadius: "50%",
+                  display: "flex", alignItems: "center", justifyContent: "center", padding: "0 2px"
+                }}>
+                  {unreadCount}
+                </span>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Theme Toggle Button */}
+        <div
+          onClick={() => setTheme(prev => prev === "bright" ? "dark" : "bright")}
+          style={{ width: 36, height: 36, borderRadius: 9, background: T.bg3,
+            border: `1px solid ${T.border}`, display: "flex", alignItems: "center",
+            justifyContent: "center", cursor: "pointer", fontSize: 15, transition: "all .2s" }}
+          onMouseEnter={e => e.currentTarget.style.borderColor = color}
+          onMouseLeave={e => e.currentTarget.style.borderColor = T.border}
+          title={theme === "bright" ? "Switch to Dark Theme" : "Switch to Bright Theme"}
+        >
+          {theme === "bright" ? "☀️" : "🌙"}
+        </div>
+
         <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}
           onClick={() => onNav("profile")}>
           <ProfileAvatar role={role} color={color} size={34} />
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 700 }}>{name || "…"}</div>
-            <div style={{ fontSize: 10, color: T.muted }}>{ROLE_NAMES[role]}</div>
-          </div>
+          {!isMobile && (
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700 }}>{name || "…"}</div>
+              <div style={{ fontSize: 10, color: T.muted }}>{ROLE_NAMES[role]}</div>
+            </div>
+          )}
         </div>
       </div>
     </header>
@@ -381,6 +599,20 @@ export const DashLayout = ({ role, page, onNav, onLogout, children }) => {
 
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
+      
+      {/* Mobile Drawer Overlay */}
+      {isMobile && open && (
+        <div
+          onClick={() => setOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,.6)",
+            backdropFilter: "blur(4px)",
+            zIndex: 150,
+          }}
+        />
+      )}
 
       {/* Sidebar */}
       <Sidebar
@@ -412,6 +644,9 @@ export const DashLayout = ({ role, page, onNav, onLogout, children }) => {
           marginTop: 60,
           padding: isMobile ? 16 : 28,
           flex: 1,
+          width: isMobile ? "100%" : "calc(100% - 240px)",
+          boxSizing: "border-box",
+          overflowX: "hidden"
         }}
       >
         {children}

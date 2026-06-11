@@ -32,6 +32,7 @@ import {
   unenrollStudentFromCourse,
   getAllBatches,
   createBatch,
+  updateBatch,
   deleteBatch,
   addStudentsToBatch,
   removeStudentFromBatch,
@@ -73,7 +74,8 @@ import {
   checkMeetingConflicts, submitOpinionResponse, markMeetingAttendance,
   selfCheckInMeeting, sendAbsenteeFollowUp,
   adminGetActiveSubscription, adminGetPackages, adminSubscribe,
-  getOrganizations
+  getOrganizations,
+  getAdminLeaves, createAdminLeave, deleteAdminLeave, getCourseWorkingDays
 } from "../../api/auth";
 import { initiatePayment } from "../../api/payment";
 
@@ -98,6 +100,9 @@ const confirmAction = (msg) => window.confirm(msg);
 
 // ─── ADMIN OVERVIEW ───────────────────────────────────────────────────────────
 export const AdminOverview = ({ onNav }) => {
+  const authData = JSON.parse(localStorage.getItem("zenelait-auth") || "{}");
+  const isSuperAdmin = authData.superAdmin === true;
+
   const [stats, setStats] = useState({
     totalStudents: 0, totalTeachers: 0, totalParents: 0,
     totalAdmins: 0, totalCourses: 0, totalDepartments: 0,
@@ -116,7 +121,11 @@ export const AdminOverview = ({ onNav }) => {
   const fetchDashboard = async () => {
     try {
       setLoading(true); setError(null);
-      const [data, rev] = await Promise.all([getAdminStats(), getRevenueSummary()]);
+      const promises = [getAdminStats()];
+      if (isSuperAdmin) {
+        promises.push(getRevenueSummary());
+      }
+      const [data, rev] = await Promise.all(promises);
       setStats({
         totalStudents:     data?.totalStudents     ?? 0,
         totalTeachers:     data?.totalTeachers     ?? 0,
@@ -129,7 +138,7 @@ export const AdminOverview = ({ onNav }) => {
         activeCourses:     data?.activeCourses     ?? 0,
         activeBatches:     data?.activeBatches     ?? 0,
       });
-      if (rev?.monthlyChart) {
+      if (isSuperAdmin && rev?.monthlyChart) {
         const labels  = Object.keys(rev.monthlyChart);
         const values  = Object.values(rev.monthlyChart).map(Number);
         const maxVal  = Math.max(...values, 1);
@@ -150,11 +159,13 @@ export const AdminOverview = ({ onNav }) => {
       <PageHeader title="Admin Dashboard" subtitle="Full system overview — Zenelait InfoTech Academy"
         actions={[<Btn size="sm" variant="ghost" onClick={fetchDashboard}>🔄 Refresh</Btn>]} />
       {error && <div style={{ background: `${T.accentR}20`, border: `1px solid ${T.accentR}40`, borderRadius: 10, padding: "10px 16px", marginBottom: 18, fontSize: 13, color: T.accentR }}>⚠️ {error}</div>}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 18, marginBottom: 18 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isSuperAdmin ? "repeat(4,1fr)" : "repeat(3,1fr)", gap: 18, marginBottom: 18 }}>
         <StatCard icon="👨‍🎓" label="Total Students"       value={loading ? "…" : stats.totalStudents}     change={`↑ ${stats.thisMonthStudents} this month`} color={T.primaryL} />
         <StatCard icon="👨‍🏫" label="Teachers"              value={loading ? "…" : stats.totalTeachers}     color={T.accent}  />
         <StatCard icon="👨‍👩‍👦" label="Parents"               value={loading ? "…" : stats.totalParents}      color={T.accentR} />
-        <StatCard icon="💰"  label="Revenue (This Month)"  value={loading ? "…" : stats.revenueThisMonth}  color={T.accentY} />
+        {isSuperAdmin && (
+          <StatCard icon="💰"  label="Revenue (This Month)"  value={loading ? "…" : stats.revenueThisMonth}  color={T.accentY} />
+        )}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 18, marginBottom: 24 }}>
         <StatCard icon="📚" label="Active Courses"    value={loading ? "…" : stats.activeCourses}    change={`${stats.totalCourses} total`} color={T.accentG}  />
@@ -162,35 +173,39 @@ export const AdminOverview = ({ onNav }) => {
         <StatCard icon="🏢" label="Departments"       value={loading ? "…" : stats.totalDepartments} change="Manage →"   color={T.primaryL} />
         <StatCard icon="🛡️" label="Admins"            value={loading ? "…" : stats.totalAdmins}      color={T.accentR}  />
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20 }}>
-        <Card>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-            <div style={{ fontFamily: "Syne", fontWeight: 700, fontSize: 15 }}>Revenue — Last 6 Months</div>
-            <Btn size="xs" variant="dark">⬇ Export PDF</Btn>
-          </div>
-          <MiniBarChart data={revenue.chartData} color={T.primary} />
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: T.muted, marginTop: 6 }}>
-            {revenue.chartLabels.map((m, i) => <span key={m}>{m}{i === revenue.chartLabels.length - 1 ? " ⭐" : ""}</span>)}
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginTop: 18 }}>
-            {[["Collected", revenue.collected, T.accentG], ["Pending", revenue.pending, T.accentY], ["Total", revenue.total, T.accent]].map(([l, v, c]) => (
-              <div key={l} style={{ background: T.bg3, borderRadius: 10, padding: 12, textAlign: "center" }}>
-                <div style={{ fontSize: 11, color: T.muted }}>{l}</div>
-                <div style={{ fontFamily: "Syne", fontSize: 18, fontWeight: 800, color: c }}>{v}</div>
-              </div>
-            ))}
-          </div>
-        </Card>
-        <div>
-          <Card style={{ marginBottom: 18 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isSuperAdmin ? "2fr 1fr" : "1fr", gap: 20 }}>
+        {isSuperAdmin && (
+          <Card>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <div style={{ fontFamily: "Syne", fontWeight: 700, fontSize: 15 }}>Revenue — Last 6 Months</div>
+              <Btn size="xs" variant="dark">⬇ Export PDF</Btn>
+            </div>
+            <MiniBarChart data={revenue.chartData} color={T.primary} />
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: T.muted, marginTop: 6 }}>
+              {revenue.chartLabels.map((m, i) => <span key={m}>{m}{i === revenue.chartLabels.length - 1 ? " ⭐" : ""}</span>)}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginTop: 18 }}>
+              {[["Collected", revenue.collected, T.accentG], ["Pending", revenue.pending, T.accentY], ["Total", revenue.total, T.accent]].map(([l, v, c]) => (
+                <div key={l} style={{ background: T.bg3, borderRadius: 10, padding: 12, textAlign: "center" }}>
+                  <div style={{ fontSize: 11, color: T.muted }}>{l}</div>
+                  <div style={{ fontFamily: "Syne", fontSize: 18, fontWeight: 800, color: c }}>{v}</div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
+        <div style={{ display: "grid", gridTemplateColumns: isSuperAdmin ? "1fr" : "1fr 1fr", gap: 20 }}>
+          <Card style={{ marginBottom: isSuperAdmin ? 18 : 0 }}>
             <div style={{ fontFamily: "Syne", fontWeight: 700, marginBottom: 14 }}>Quick Actions</div>
-            {[["👥 Manage Users", "users"], ["📚 Add Course", "courses"], ["🏢 Departments", "departments"], ["📈 Revenue Report", "revenue"]].map(([l, key]) => (
-              <div key={l} onClick={() => onNav(key)}
-                style={{ padding: "9px 12px", borderRadius: 8, cursor: "pointer", fontSize: 13, marginBottom: 6, background: T.bg3, border: `1px solid ${T.border}`, transition: "all .2s" }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = T.primary; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; }}
-              >{l}</div>
-            ))}
+            {[[ "👥 Manage Users", "users" ], [ "📚 Add Course", "courses" ], [ "🏢 Departments", "departments" ], isSuperAdmin ? [ "📈 Revenue Report", "revenue" ] : null]
+              .filter(Boolean)
+              .map(([l, key]) => (
+                <div key={l} onClick={() => onNav(key)}
+                  style={{ padding: "9px 12px", borderRadius: 8, cursor: "pointer", fontSize: 13, marginBottom: 6, background: T.bg3, border: `1px solid ${T.border}`, transition: "all .2s" }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = T.primary; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; }}
+                >{l}</div>
+              ))}
           </Card>
           <Card>
             <div style={{ fontFamily: "Syne", fontWeight: 700, marginBottom: 14 }}>System Status</div>
@@ -323,6 +338,19 @@ export const AdminDepartments = () => {
 
   const handleSave = async () => {
     if (!form.name.trim()) { alert("Department name is required."); return; }
+    
+    // Check for duplicate department name case-insensitively and whitespace-insensitively
+    const cleanNewName = form.name.replace(/\s+/g, "").toLowerCase();
+    const isDuplicate = depts.some(d => {
+      if (modal === "edit" && d.id === editing?.id) return false;
+      return d.name.replace(/\s+/g, "").toLowerCase() === cleanNewName;
+    });
+    
+    if (isDuplicate) {
+      alert("Error: A department with this name already exists in your organization (case & space insensitive check).");
+      return;
+    }
+
     try {
       setSaving(true);
       if (modal === "create") {
@@ -438,6 +466,8 @@ export const AdminUsers = () => {
   const [loading, setLoading]   = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [page, setPage]         = useState(1);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedDept, setSelectedDept] = useState("");
 
   useEffect(() => { loadAll(); }, []);
 
@@ -541,9 +571,30 @@ console.log("creating user with data:",{...newUser,departmentId,orgId});
   const onTogStudent = async (id, active) => { await toggleStudent(id, active).catch(console.error); setStudents(s => s.map(x => x.id === id ? { ...x, active } : x)); };
   const onTogTeacher = async (id, active) => { await toggleTeacher(id, active).catch(console.error); setTeachers(t => t.map(x => x.id === id ? { ...x, active } : x)); };
 
+  // ── Filtering and Slicing ──
+  const filteredStudents = students.filter(s => {
+    const matchesName = s.name && s.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesDept = !selectedDept || s.department === selectedDept;
+    return matchesName && matchesDept;
+  });
+
+  const filteredTeachers = teachers.filter(t => {
+    const matchesName = t.name && t.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesDept = !selectedDept || t.department === selectedDept;
+    return matchesName && matchesDept;
+  });
+
+  const filteredParents = parents.filter(p => 
+    p.name && p.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredAdmins = admins.filter(a => 
+    a.name && a.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   // ── Row builders ──
   const pageSize = 15;
-  const paginatedStudents = students.slice((page - 1) * pageSize, page * pageSize);
+  const paginatedStudents = filteredStudents.slice((page - 1) * pageSize, page * pageSize);
   const studentRows = paginatedStudents.map(s => [
     <div style={{ display: "flex", gap: 8, alignItems: "center" }}><Avatar name={s.name} size={28} />{s.name}</div>,
     s.userId || `STU-${s.id}`, s.department || "—", s.email,
@@ -554,7 +605,7 @@ console.log("creating user with data:",{...newUser,departmentId,orgId});
     </div>,
   ]);
 
-  const paginatedTeachers = teachers.slice((page - 1) * pageSize, page * pageSize);
+  const paginatedTeachers = filteredTeachers.slice((page - 1) * pageSize, page * pageSize);
   const teacherRows = paginatedTeachers.map(t => [
     <div style={{ display: "flex", gap: 8, alignItems: "center" }}><Avatar name={t.name} size={28} color={T.accentG} />{t.name}</div>,
     t.userId || `TCH-${t.id}`, t.department || "—", t.email,
@@ -565,14 +616,14 @@ console.log("creating user with data:",{...newUser,departmentId,orgId});
     </div>,
   ]);
 
-  const paginatedParents = parents.slice((page - 1) * pageSize, page * pageSize);
+  const paginatedParents = filteredParents.slice((page - 1) * pageSize, page * pageSize);
   const parentRows = paginatedParents.map(p => [
     <div style={{ display: "flex", gap: 8, alignItems: "center" }}><Avatar name={p.name} size={28} color={T.accentR} />{p.name}</div>,
     p.userId || `PAR-${p.id}`, p.email, p.phone || "—",
     <Btn size="xs" variant="danger" onClick={() => onDelParent(p.id)}>🗑</Btn>,
   ]);
 
-  const paginatedAdmins = admins.slice((page - 1) * pageSize, page * pageSize);
+  const paginatedAdmins = filteredAdmins.slice((page - 1) * pageSize, page * pageSize);
   const adminRows = paginatedAdmins.map(a => [
     <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
       <Avatar name={a.name} size={28} color={T.accentY} />{a.name}
@@ -604,13 +655,68 @@ console.log("creating user with data:",{...newUser,departmentId,orgId});
         </Badge>
       </div>
 
-      <Tabs tabs={tabs} active={tab} onChange={(t) => { setTab(t); setPage(1); }} />
+      <Tabs tabs={tabs} active={tab} onChange={(t) => { setTab(t); setPage(1); setSearchQuery(""); setSelectedDept(""); }} />
 
       <Card>
         {loading ? (
           <div style={{ padding: 32, textAlign: "center", color: T.muted }}>Loading…</div>
         ) : (
           <>
+            {/* Search and Filters Header */}
+            <div style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 16,
+              marginBottom: 20,
+              flexWrap: "wrap"
+            }}>
+              <div style={{ flex: 1, minWidth: 260, position: "relative" }}>
+                <input
+                  type="text"
+                  placeholder={`Search ${tab.toLowerCase()} by name...`}
+                  value={searchQuery}
+                  onChange={e => { setSearchQuery(e.target.value); setPage(1); }}
+                  style={{
+                    width: "100%",
+                    background: T.bg3,
+                    border: `1.5px solid ${T.border}`,
+                    borderRadius: 30,
+                    padding: "8px 16px 8px 36px",
+                    fontSize: 13,
+                    color: T.text,
+                    outline: "none",
+                    boxSizing: "border-box"
+                  }}
+                />
+                <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: T.muted }}>🔍</span>
+              </div>
+              
+              {(tab === "Students" || tab === "Teachers") && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 12, color: T.muted, fontWeight: 600 }}>Department:</span>
+                  <select
+                    value={selectedDept}
+                    onChange={e => { setSelectedDept(e.target.value); setPage(1); }}
+                    style={{
+                      background: T.bg3,
+                      border: `1.5px solid ${T.border}`,
+                      borderRadius: 30,
+                      padding: "8px 16px",
+                      fontSize: 13,
+                      color: T.text,
+                      outline: "none",
+                      cursor: "pointer"
+                    }}
+                  >
+                    <option value="">All Departments</option>
+                    {departments.map(d => (
+                      <option key={d.id} value={d.name}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
             {/* ── Admins tab (super admin only) ── */}
             {tab === "Admins" && isSuperAdmin && (
               <>
@@ -655,7 +761,10 @@ console.log("creating user with data:",{...newUser,departmentId,orgId});
 
             {/* Pagination Controls */}
             {(() => {
-              const currentArray = tab === "Students" ? students : tab === "Teachers" ? teachers : tab === "Parents" ? parents : admins;
+              const currentArray = tab === "Students" ? filteredStudents 
+                                 : tab === "Teachers" ? filteredTeachers 
+                                 : tab === "Parents" ? filteredParents 
+                                 : filteredAdmins;
               if (currentArray.length <= pageSize) return null;
               const totalPages = Math.ceil(currentArray.length / pageSize);
               return (
@@ -783,9 +892,12 @@ export const AdminCourses = () => {
   const [editForm, setEditForm]       = useState({ teacherId: "", title: "", durationHours: "", description: "" });
   const [loading, setLoading]         = useState(false);
   const [enrolledIds, setEnrolledIds] = useState([]);
+  const [directEnrolledIds, setDirectEnrolledIds] = useState([]);
   const [selectedStudents, setSelectedStudents] = useState([]);
   const [saving, setSaving]           = useState(false);
   const [form, setForm] = useState({ title: "", description: "", department: "", durationHours: "", teacherId: "", batchId: "" });
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
 
   const load = async () => {
     setLoading(true);
@@ -867,8 +979,13 @@ export const AdminCourses = () => {
     setSelectedStudents([]);
     try {
       const enrolled = await getCourseStudents(course.id);
-      setEnrolledIds((Array.isArray(enrolled) ? enrolled : []).map(s => s.id));
-    } catch { setEnrolledIds([]); }
+      const enrolledArr = Array.isArray(enrolled) ? enrolled : [];
+      setEnrolledIds(enrolledArr.map(s => s.id));
+      setDirectEnrolledIds(enrolledArr.filter(s => s.isDirect).map(s => s.id));
+    } catch {
+      setEnrolledIds([]);
+      setDirectEnrolledIds([]);
+    }
   };
 
   const toggleStudentSelect = (id) => setSelectedStudents(p =>
@@ -881,6 +998,7 @@ export const AdminCourses = () => {
       setSaving(true);
       await enrollStudentsInCourse(enrollModal.id, selectedStudents);
       setEnrolledIds(p => [...new Set([...p, ...selectedStudents])]);
+      setDirectEnrolledIds(p => [...new Set([...p, ...selectedStudents])]);
       setSelectedStudents([]);
       alert(`✅ ${selectedStudents.length} student(s) enrolled in ${enrollModal.title}`);
       load();
@@ -891,6 +1009,7 @@ export const AdminCourses = () => {
   const handleUnenroll = async (studentId) => {
     await unenrollStudentFromCourse(enrollModal.id, studentId).catch(e => alert(e.message));
     setEnrolledIds(p => p.filter(x => x !== studentId));
+    setDirectEnrolledIds(p => p.filter(x => x !== studentId));
   };
 
   const unenrolled = allStudents.filter(s => !enrolledIds.includes(s.id));
@@ -898,7 +1017,16 @@ export const AdminCourses = () => {
 
   const statusType = s => s === "ACTIVE" ? "success" : s === "UPCOMING" ? "info" : s === "COMPLETED" ? "muted" : "warning";
 
-  const rows = courses.map(c => [
+  const filteredCourses = courses.filter(c => {
+    const nameMatch = c.title?.toLowerCase().includes(searchQuery.toLowerCase());
+    const courseStatus = (c.effectiveStatus || c.status || "DRAFT").toUpperCase();
+    if (statusFilter === "Active") return nameMatch && courseStatus === "ACTIVE";
+    if (statusFilter === "Draft") return nameMatch && courseStatus === "DRAFT";
+    if (statusFilter === "Completed") return nameMatch && (courseStatus === "INACTIVE" || courseStatus === "COMPLETED");
+    return nameMatch;
+  });
+
+  const rows = filteredCourses.map(c => [
     <div>
       <div style={{ fontWeight: 700 }}>{c.title}</div>
       <div style={{ fontSize: 11, color: T.muted }}>{c.durationHours} hrs · {c.department || "—"}</div>
@@ -926,10 +1054,37 @@ export const AdminCourses = () => {
         subtitle="Create courses, assign to batches — status auto-calculated from batch dates"
         actions={[<Btn variant="primary" onClick={() => setModal(true)}>+ Create Course</Btn>]} />
       <Card>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
+          <div style={{ flex: 1, minWidth: 260, position: "relative", marginBottom: 20 }}>
+            <input
+              type="text"
+              placeholder="Search courses by name..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              style={{
+                width: "100%",
+                background: T.bg3,
+                border: `1.5px solid ${T.border}`,
+                borderRadius: 30,
+                padding: "8px 16px 8px 36px",
+                fontSize: 13,
+                color: T.text,
+                outline: "none",
+                boxSizing: "border-box",
+                height: 38
+              }}
+            />
+            <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: T.muted }}>🔍</span>
+          </div>
+          <div style={{ width: 340 }}>
+            <Tabs tabs={["All", "Active", "Draft", "Completed"]} active={statusFilter} onChange={setStatusFilter} />
+          </div>
+        </div>
+
         {loading
           ? <div style={{ padding: 32, textAlign: "center", color: T.muted }}>Loading…</div>
           : <Table columns={["Course", "Teacher", "Batch", "Status", "Actions"]}
-              rows={rows.length ? rows : [["No courses", "", "", "", ""]]} />
+              rows={rows.length ? rows : [["No courses matching filters", "", "", "", ""]]} />
         }
       </Card>
 
@@ -1015,7 +1170,7 @@ export const AdminCourses = () => {
         </p>
         {enrolled.length > 0 && (
           <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: T.accentG, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>✅ Directly Enrolled ({enrolled.length})</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: T.accentG, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>✅ Enrolled Students ({enrolled.length})</div>
             <div style={{ maxHeight: 150, overflowY: "auto", border: `1px solid ${T.border}`, borderRadius: 9 }}>
               {enrolled.map(s => (
                 <div key={s.id} style={{ display: "flex", gap: 10, padding: "8px 14px", borderBottom: `1px solid rgba(45,33,96,.3)`, alignItems: "center" }}>
@@ -1024,7 +1179,11 @@ export const AdminCourses = () => {
                     <div style={{ fontSize: 13, fontWeight: 600 }}>{s.name}</div>
                     <div style={{ fontSize: 11, color: T.muted }}>{s.userId} · {s.department || "—"}</div>
                   </div>
-                  <Btn size="xs" variant="danger" onClick={() => handleUnenroll(s.id)}>Remove</Btn>
+                  {directEnrolledIds.includes(s.id) ? (
+                    <Btn size="xs" variant="danger" onClick={() => handleUnenroll(s.id)}>Remove</Btn>
+                  ) : (
+                    <span style={{ fontSize: 11, background: `${T.accent}18`, color: T.accent, borderRadius: 50, padding: "2px 8px", fontWeight: 700 }}>🏫 Batch</span>
+                  )}
                 </div>
               ))}
             </div>
@@ -1073,6 +1232,7 @@ export const AdminBatches = () => {
   const [depts, setDepts]             = useState([]);
   const [allStudents, setAllStudents] = useState([]);
   const [allCourses, setAllCourses]   = useState([]);
+  const [teachers, setTeachers]       = useState([]);
   const [loading, setLoading]         = useState(false);
   const [createModal, setCreateModal] = useState(false);
   const [enrollModal, setEnrollModal] = useState(null);
@@ -1081,26 +1241,33 @@ export const AdminBatches = () => {
   const [batchSubjects, setBatchSubjects]   = useState([]);  // courses in selected batch
   const [addSubjectId, setAddSubjectId]     = useState("");
   const [feeModal, setFeeModal]       = useState(null);
-  const [form, setForm]         = useState({ name: "", department: "", startDate: "", endDate: "" });
+  const [form, setForm]         = useState({ name: "", department: "", startDate: "", endDate: "", classTeacherId: "" });
   const [selectedStudents, setSelectedStudents] = useState([]);
   const [selectedCourse, setSelectedCourse]     = useState("");
   const [feeForm, setFeeForm]   = useState({ amount: "", dueDate: "", description: "", feeType: "TUITION" });
   const [saving, setSaving]     = useState(false);
   const [viewStudentsModal, setViewStudentsModal] = useState(null);
   const [selectedCoursePerBatch, setSelectedCoursePerBatch] = useState({});
+  const [editBatchModal, setEditBatchModal] = useState(null); // batch being edited
+  const [editBatchForm, setEditBatchForm]   = useState({ name: "", department: "", startDate: "", endDate: "", classTeacherId: "" });
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+
   const load = async () => {
     setLoading(true);
     try {
-      const [b, d, s, c] = await Promise.all([
+      const [b, d, s, c, t] = await Promise.all([
         getAllBatches().catch(e => { console.error("Batch load error:", e); return []; }),
         getAllDepartments().catch(e => { console.error("Dept load error:", e); return []; }),
         getAllStudents().catch(e => { console.error("Student load error:", e); return []; }),
-        getAllCourses().catch(e => { console.error("Course load error:", e); return []; })
+        getAllCourses().catch(e => { console.error("Course load error:", e); return []; }),
+        getAllTeachers().catch(e => { console.error("Teacher load error:", e); return []; })
       ]);
       setBatches(Array.isArray(b) ? b : (b?.data || b?.content || []));
       setDepts(Array.isArray(d) ? d.filter(x => x.active) : (d?.data || d?.content || []).filter(x => x.active));
       setAllStudents(Array.isArray(s) ? s : (s?.data || s?.content || []));
       setAllCourses(Array.isArray(c) ? c : (c?.data || c?.content || []));
+      setTeachers(Array.isArray(t) ? t : (t?.data || t?.content || []));
     } catch (error) {
       console.error("General load error:", error);
     } finally {
@@ -1109,20 +1276,60 @@ export const AdminBatches = () => {
   };
   useEffect(() => { load(); }, []);
   const getSelectedCourse = (batch) => {
-  const selectedId = selectedCoursePerBatch[batch.id];
-  const allBatchCourses = batch.courses || [];
-  if (selectedId) return allBatchCourses.find(c => String(c.id) === String(selectedId)) || allBatchCourses[0] || null;
-  return allBatchCourses[0] || null; // default to first course
-};
+    const selectedId = selectedCoursePerBatch[batch.id];
+    const allBatchCourses = batch.courses || [];
+    if (selectedId) return allBatchCourses.find(c => String(c.id) === String(selectedId)) || allBatchCourses[0] || null;
+    return allBatchCourses[0] || null; // default to first course
+  };
 
   const handleCreate = async () => {
     if (!form.name || !form.department || !form.startDate || !form.endDate) { alert("All fields are required."); return; }
     try {
-      const created = await createBatch(form);
-      setBatches(b => [...b, created]);
+      setSaving(true);
+      await createBatch({
+        name:           form.name,
+        department:     form.department,
+        startDate:      form.startDate,
+        endDate:        form.endDate,
+        classTeacherId: form.classTeacherId || null
+      });
       setCreateModal(false);
-      setForm({ name: "", department: "", startDate: "", endDate: "" });
+      setForm({ name: "", department: "", startDate: "", endDate: "", classTeacherId: "" });
+      load();
     } catch (err) { alert("Error: " + err.message); }
+    finally { setSaving(false); }
+  };
+
+  const openEditBatch = (batch) => {
+    setEditBatchModal(batch);
+    setEditBatchForm({
+      name:           batch.name || "",
+      department:     batch.department || "",
+      startDate:      batch.startDate || "",
+      endDate:        batch.endDate || "",
+      classTeacherId: batch.classTeacher?.id ? String(batch.classTeacher.id) : "",
+    });
+  };
+
+  const handleEditBatchSave = async () => {
+    if (!editBatchModal) return;
+    if (!editBatchForm.name || !editBatchForm.department || !editBatchForm.startDate || !editBatchForm.endDate) {
+      alert("All fields are required.");
+      return;
+    }
+    try {
+      setSaving(true);
+      await updateBatch(editBatchModal.id, {
+        name:           editBatchForm.name,
+        department:     editBatchForm.department,
+        startDate:      editBatchForm.startDate,
+        endDate:        editBatchForm.endDate,
+        classTeacherId: editBatchForm.classTeacherId || null,
+      });
+      setEditBatchModal(null);
+      load();
+    } catch (err) { alert("Error: " + err.message); }
+    finally { setSaving(false); }
   };
 
   const handleDelete = async (id) => {
@@ -1205,6 +1412,15 @@ export const AdminBatches = () => {
     return allStudents.filter(s => !enrolled.has(s.id));
   };
 
+  const filteredBatches = batches.filter(b => {
+    const nameMatch = b.name?.toLowerCase().includes(searchQuery.toLowerCase());
+    const batchStatus = (b.status || "UPCOMING").toUpperCase();
+    if (statusFilter === "Active") return nameMatch && batchStatus === "ACTIVE";
+    if (statusFilter === "Draft") return nameMatch && batchStatus === "UPCOMING";
+    if (statusFilter === "Completed") return nameMatch && batchStatus === "COMPLETED";
+    return nameMatch;
+  });
+
   return (
     <div className="fade-up">
       <PageHeader title="Batch Management" subtitle="Create batches → Add students → Assign course → Generate fees"
@@ -1229,12 +1445,41 @@ export const AdminBatches = () => {
           <Btn variant="primary" onClick={() => setCreateModal(true)}>+ Create Batch</Btn>
         ]} />
 
+      <Card hover={false} style={{ marginBottom: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
+          <div style={{ flex: 1, minWidth: 260, position: "relative", marginBottom: 20 }}>
+            <input
+              type="text"
+              placeholder="Search batches by name..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              style={{
+                width: "100%",
+                background: T.bg3,
+                border: `1.5px solid ${T.border}`,
+                borderRadius: 30,
+                padding: "8px 16px 8px 36px",
+                fontSize: 13,
+                color: T.text,
+                outline: "none",
+                boxSizing: "border-box",
+                height: 38
+              }}
+            />
+            <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: T.muted }}>🔍</span>
+          </div>
+          <div style={{ width: 340 }}>
+            <Tabs tabs={["All", "Active", "Draft", "Completed"]} active={statusFilter} onChange={setStatusFilter} />
+          </div>
+        </div>
+      </Card>
+
       {loading
         ? <div style={{ padding: 32, textAlign: "center", color: T.muted }}>Loading…</div>
-        : batches.length === 0
-          ? <Card><div style={{ padding: 32, textAlign: "center", color: T.muted }}>No batches yet. Create one to get started.</div></Card>
+        : filteredBatches.length === 0
+          ? <Card><div style={{ padding: 32, textAlign: "center", color: T.muted }}>No batches matching filters found.</div></Card>
           : <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 20 }}>
-              {batches.map(b => {
+              {filteredBatches.map(b => {
                 const studentCount   = b.studentCount ?? b.students?.length ?? 0;
                 const batchCourses   = b.courses || [];
                 const activeCourse   = getSelectedCourse(b);
@@ -1248,6 +1493,9 @@ export const AdminBatches = () => {
                       <div>
                         <div style={{ fontFamily: "Syne", fontWeight: 800, fontSize: 15 }}>{b.name}</div>
                         <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>🏢 {b.department}</div>
+                        {b.classTeacher?.name && (
+                          <div style={{ fontSize: 12, color: T.accent, fontWeight: 700, marginTop: 3 }}>👨‍💼 Head Teacher: {b.classTeacher.name}</div>
+                        )}
                       </div>
                       <Badge type={b.status === "ACTIVE" ? "success" : b.status === "UPCOMING" ? "info" : "warning"}>
                         {b.status || "UPCOMING"}
@@ -1345,7 +1593,10 @@ export const AdminBatches = () => {
                         💳 Fees
                       </Btn>
                     </div>
-                    <Btn size="xs" variant="danger" full onClick={() => handleDelete(b.id)}>🗑 Delete Batch</Btn>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                      <Btn size="xs" variant="ghost" onClick={() => openEditBatch(b)}>✏️ Edit Batch</Btn>
+                      <Btn size="xs" variant="danger" onClick={() => handleDelete(b.id)}>🗑 Delete</Btn>
+                    </div>
                   </Card>
                 );
               })}
@@ -1353,7 +1604,7 @@ export const AdminBatches = () => {
       }
 
       {/* Create Batch Modal */}
-      <Modal open={createModal} onClose={() => setCreateModal(false)} title="Create New Batch">
+      <Modal open={createModal} onClose={() => { setCreateModal(false); setForm({ name: "", department: "", startDate: "", endDate: "", classTeacherId: "" }); }} title="Create New Batch">
         <p style={{ fontSize: 13, color: T.muted, marginBottom: 14 }}>After creating a batch: add students → assign a course → generate fees.</p>
         <Input label="Batch Name *" placeholder="e.g. CS-2026-Batch-A" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
         <Select label="Department *" value={form.department} onChange={e => setForm(f => ({ ...f, department: e.target.value }))}
@@ -1362,7 +1613,23 @@ export const AdminBatches = () => {
           <Input label="Start Date *" type="date" value={form.startDate} onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} />
           <Input label="End Date *"   type="date" value={form.endDate}   onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))} />
         </div>
-        <Btn variant="primary" full size="lg" onClick={handleCreate}>Create Batch →</Btn>
+        <Select label="Class Teacher (optional)" value={form.classTeacherId} onChange={e => setForm(f => ({ ...f, classTeacherId: e.target.value }))}
+          options={[{ value: "", label: "-- Assign Class Teacher --" }, ...teachers.map(t => ({ value: String(t.id), label: `${t.name} (${t.department || "No Dept"})` }))]} />
+        <Btn variant="primary" full size="lg" onClick={handleCreate} disabled={saving}>{saving ? "Creating…" : "Create Batch →"}</Btn>
+      </Modal>
+
+      {/* Edit Batch Modal */}
+      <Modal open={!!editBatchModal} onClose={() => setEditBatchModal(null)} title={`Edit Batch — ${editBatchModal?.name}`}>
+        <Input label="Batch Name *" value={editBatchForm.name} onChange={e => setEditBatchForm(f => ({ ...f, name: e.target.value }))} />
+        <Select label="Department *" value={editBatchForm.department} onChange={e => setEditBatchForm(f => ({ ...f, department: e.target.value }))}
+          options={[{ value: "", label: "-- Select Department --" }, ...depts.map(d => ({ value: d.name, label: d.name }))]} />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <Input label="Start Date *" type="date" value={editBatchForm.startDate} onChange={e => setEditBatchForm(f => ({ ...f, startDate: e.target.value }))} />
+          <Input label="End Date *"   type="date" value={editBatchForm.endDate}   onChange={e => setEditBatchForm(f => ({ ...f, endDate: e.target.value }))} />
+        </div>
+        <Select label="Class Teacher (optional)" value={editBatchForm.classTeacherId} onChange={e => setEditBatchForm(f => ({ ...f, classTeacherId: e.target.value }))}
+          options={[{ value: "", label: "-- Assign Class Teacher --" }, ...teachers.map(t => ({ value: String(t.id), label: `${t.name} (${t.department || "No Dept"})` }))]} />
+        <Btn variant="primary" full size="lg" onClick={handleEditBatchSave} disabled={saving}>{saving ? "Saving…" : "Save Changes →"}</Btn>
       </Modal>
 
       {/* Enroll Students Modal */}
@@ -1610,6 +1877,8 @@ export const AdminTimetable = () => {
   const [editSlot, setEditSlot]   = useState(null); // slot being edited
   const [saving, setSaving]     = useState(false);
   const [filterBatch, setFilter] = useState("ALL");
+  const [filterDept, setFilterDept] = useState("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
   const [form, setForm]         = useState({
     batchId: "", courseId: "", dayOfWeek: "MONDAY",
     startTime: "09:00", endTime: "11:00", room: ""
@@ -1735,7 +2004,19 @@ const getAutoEndTime = (start) => {
 };
 
   // Build grid: unique time slots × days
-  const filteredSlots = filterBatch === "ALL" ? slots : slots.filter(s => String(s.batch?.id) === filterBatch);
+  const filteredSlots = slots.filter(s => {
+    if (filterBatch !== "ALL" && String(s.batch?.id) !== filterBatch) return false;
+    if (filterDept !== "ALL" && s.batch?.department !== filterDept) return false;
+    if (searchQuery && !s.batch?.name?.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    return true;
+  });
+  const uniqueDepartments = Array.from(new Set(batches.map(b => b.department).filter(Boolean)));
+  const filteredBatchesForButtons = batches.filter(b => {
+    const matchesDept = filterDept === "ALL" || b.department === filterDept;
+    const matchesSearch = b.name?.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesDept && matchesSearch;
+  });
+
   const timeSlots = [...new Set(filteredSlots.map(s => s.startTime + "–" + s.endTime))].sort();
   const cellColor = (course) => COLORS[Math.abs((course?.id || 0) * 3) % COLORS.length];
 
@@ -1745,17 +2026,58 @@ const getAutoEndTime = (start) => {
         subtitle="Active batch schedules — auto-expires when batch ends"
         actions={[<Btn variant="primary" onClick={() => { setModal(true); setError(""); }}>+ Add Slot</Btn>]} />
 
-      {/* Batch filter */}
+      {/* Timetable Search & Department filters */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 16, alignItems: "center", flexWrap: "wrap", background: T.bg3, padding: "12px 16px", borderRadius: 12 }}>
+        <span style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Syne" }}>🔍 Find Timetable:</span>
+        <input 
+          type="text"
+          placeholder="Search batch name..."
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          style={{
+            padding: "8px 12px",
+            borderRadius: 8,
+            border: `1.5px solid ${T.border}`,
+            background: T.bg2,
+            color: T.text,
+            fontSize: 12,
+            minWidth: 200,
+            outline: "none"
+          }}
+        />
+        <select
+          value={filterDept}
+          onChange={e => { setFilterDept(e.target.value); setFilter("ALL"); }}
+          style={{
+            padding: "8px 12px",
+            borderRadius: 8,
+            border: `1.5px solid ${T.border}`,
+            background: T.bg2,
+            color: T.text,
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: "pointer",
+            outline: "none"
+          }}
+        >
+          <option value="ALL">All Departments</option>
+          {uniqueDepartments.map(dept => (
+            <option key={dept} value={dept}>{dept}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Batch filter buttons */}
       <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap", alignItems: "center" }}>
-        <span style={{ fontSize: 12, color: T.muted, fontWeight: 600 }}>Filter:</span>
+        <span style={{ fontSize: 12, color: T.muted, fontWeight: 600 }}>Active Batches:</span>
         <button onClick={() => setFilter("ALL")}
           style={{ padding: "5px 14px", borderRadius: 50, cursor: "pointer", fontSize: 12, fontWeight: 600,
             border: `1.5px solid ${filterBatch === "ALL" ? T.primary : T.border}`,
             background: filterBatch === "ALL" ? `${T.primary}20` : "transparent",
             color: filterBatch === "ALL" ? T.primary : T.muted }}>
-          All Active Batches ({slots.length})
+          All Filtered Slots ({filteredSlots.length})
         </button>
-        {batches.map(b => (
+        {filteredBatchesForButtons.map(b => (
           <button key={b.id} onClick={() => setFilter(String(b.id))}
             style={{ padding: "5px 14px", borderRadius: 50, cursor: "pointer", fontSize: 12, fontWeight: 600,
               border: `1.5px solid ${filterBatch === String(b.id) ? T.accent : T.border}`,
@@ -2377,22 +2699,336 @@ export const AdminRevenue = () => {
 
 // ─── STAFF PERFORMANCE ────────────────────────────────────────────────────────
 export const AdminStaff = () => {
-  const [teachers, setTeachers] = useState([]);
+  const [perf, setPerf]         = useState([]);
   const [loading, setLoading]   = useState(false);
-  useEffect(() => { setLoading(true); getAllTeachers().then(d => setTeachers(Array.isArray(d) ? d : [])).catch(console.error).finally(() => setLoading(false)); }, []);
-  const rows = teachers.map(t => [
-    <div style={{ display: "flex", gap: 8, alignItems: "center" }}><Avatar name={t.name} size={28} color={T.accentG} />{t.name}</div>,
-    t.department || "—", t.courses?.length ?? "—", "—",
-    <span style={{ color: T.accentY, fontWeight: 700 }}>⭐ —</span>,
-    <ProgressBar value={0} color={T.accentG} height={5} />,
-    <Badge type={t.active ? "success" : "warning"}>{t.active ? "Active" : "Inactive"}</Badge>,
-  ]);
+  const [selectedTeacher, setSelectedTeacher] = useState(null);
+  const [selectedCalcTeacher, setSelectedCalcTeacher] = useState(null);
+  const [reviews, setReviews]   = useState([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [searchQ, setSearchQ]   = useState("");
+  const [sortBy, setSortBy]     = useState("name"); // name | rating | reviews
+
+  useEffect(() => {
+    setLoading(true);
+    getAdminTeachersPerformance()
+      .then(d => {
+        const arr = Array.isArray(d) ? d : (d?.data || d?.content || []);
+        setPerf(arr);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  const openCalculation = (teacher) => {
+    setSelectedCalcTeacher(teacher);
+  };
+
+  const openReviews = (teacher) => {
+    setSelectedTeacher(teacher);
+    setReviewsLoading(true);
+    getAdminTeacherReviews(teacher.teacherId)
+      .then(d => setReviews(Array.isArray(d) ? d : (d?.data || d?.content || [])))
+      .catch(console.error)
+      .finally(() => setReviewsLoading(false));
+  };
+
+  const renderStars = (rating) => {
+    const r = Math.round(rating || 0);
+    return (
+      <span style={{ fontSize: 14 }}>
+        {[1,2,3,4,5].map(i => (
+          <span key={i} style={{ color: i <= r ? "#f59e0b" : T.border }}>★</span>
+        ))}
+        <span style={{ marginLeft: 5, color: T.muted, fontSize: 12 }}>
+          {rating ? rating.toFixed(1) : "0.0"}/5
+        </span>
+      </span>
+    );
+  };
+
+  const filteredPerf = perf
+    .filter(t => (t.teacherName || "").toLowerCase().includes(searchQ.toLowerCase()) ||
+                 (t.department || "").toLowerCase().includes(searchQ.toLowerCase()))
+    .sort((a, b) => {
+      if (sortBy === "rating")     return (b.averageRating || 0) - (a.averageRating || 0);
+      if (sortBy === "reviews")    return (b.totalReviews || 0) - (a.totalReviews || 0);
+      if (sortBy === "completion") return (b.avgCompletion || 0) - (a.avgCompletion || 0);
+      return (a.teacherName || "").localeCompare(b.teacherName || "");
+    });
+
+  const rows = filteredPerf.map(t => {
+    const rating = t.averageRating || 0;
+    const ratingPct = (rating / 5) * 100;
+    const completion = t.avgCompletion ?? 0;
+    return [
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <Avatar name={t.teacherName} size={28} color={T.accentG} />
+        <div>
+          <div style={{ fontWeight: 600, color: T.text }}>{t.teacherName}</div>
+          <div style={{ fontSize: 11, color: T.muted }}>{t.teacherEmail}</div>
+        </div>
+      </div>,
+      <Badge type="info">{t.department || "—"}</Badge>,
+      <span style={{ fontWeight: 600 }}>{t.courseCount ?? "—"}</span>,
+      <span style={{ fontWeight: 600 }}>{t.totalReviews ?? 0}</span>,
+      renderStars(rating),
+      /* Avg Completion column */
+      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 110 }}>
+        <ProgressBar
+          value={completion}
+          color={completion >= 70 ? T.accentG : completion >= 40 ? T.accentY : "#ef4444"}
+          height={6}
+        />
+        <span style={{ fontSize: 12, fontWeight: 600, color: completion >= 70 ? T.accentG : completion >= 40 ? T.accentY : "#ef4444", whiteSpace: "nowrap" }}>
+          {completion}%
+        </span>
+      </div>,
+      <div style={{ display: "flex", gap: 6 }}>
+        <Btn variant="outline" style={{ fontSize: 11, padding: "4px 8px" }} onClick={() => openReviews(t)}>
+          💬 Reviews
+        </Btn>
+        <Btn variant="primary" style={{ fontSize: 11, padding: "4px 8px" }} onClick={() => openCalculation(t)}>
+          📊 Calculation
+        </Btn>
+      </div>,
+    ];
+  });
+
   return (
     <div className="fade-up">
       <PageHeader title="Staff Performance & Monitoring" />
-      <Card>{loading ? <div style={{ padding: 32, textAlign: "center", color: T.muted }}>Loading…</div>
-        : <Table columns={["Teacher", "Department", "Students", "Classes", "Avg Rating", "Completion", "Status"]} rows={rows.length ? rows : [["No teachers", "", "", "", "", "", ""]]} />}
+
+      {/* Info Banner */}
+      <div style={{
+        background: "linear-gradient(135deg, rgba(99,102,241,0.12), rgba(168,85,247,0.08))",
+        border: `1px solid rgba(99,102,241,0.25)`,
+        borderRadius: 12, padding: "12px 20px", marginBottom: 20,
+        display: "flex", alignItems: "center", gap: 12
+      }}>
+        <span style={{ fontSize: 22 }}>ℹ️</span>
+        <div>
+          <strong style={{ color: T.text }}>Who gives the ratings?</strong>
+          <span style={{ color: T.muted, fontSize: 13, marginLeft: 8 }}>
+            Performance ratings are submitted by <strong>students</strong> after they complete at least 50% of a course. Each review includes a 1–5 star rating and optional feedback.
+          </span>
+        </div>
+      </div>
+
+      {/* Summary Stats */}
+      {perf.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 16, marginBottom: 20 }}>
+          <StatCard
+            label="Total Staff"
+            value={perf.length}
+            icon="👨‍🏫"
+            color={T.accentB}
+          />
+          <StatCard
+            label="Avg Org Rating"
+            value={(perf.reduce((s, t) => s + (t.averageRating || 0), 0) / perf.length).toFixed(1) + " ⭐"}
+            icon="⭐"
+            color={T.accentY}
+          />
+          <StatCard
+            label="Total Reviews"
+            value={perf.reduce((s, t) => s + (t.totalReviews || 0), 0)}
+            icon="📝"
+            color={T.accentG}
+          />
+          <StatCard
+            label="Avg Completion"
+            value={Math.round(perf.reduce((s, t) => s + (t.avgCompletion || 0), 0) / perf.length) + "%"}
+            icon="📊"
+            color="#8b5cf6"
+          />
+          <StatCard
+            label="Top Rated"
+            value={perf.sort((a,b)=>(b.averageRating||0)-(a.averageRating||0))[0]?.teacherName?.split(" ")[0] || "—"}
+            icon="🏆"
+            color="#f59e0b"
+          />
+        </div>
+      )}
+
+      {/* Search & Sort */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 16, alignItems: "center" }}>
+        <Input
+          placeholder="🔍 Search by name or department…"
+          value={searchQ}
+          onChange={e => setSearchQ(e.target.value)}
+          style={{ flex: 1, maxWidth: 320 }}
+        />
+        <Select
+          value={sortBy}
+          onChange={e => setSortBy(e.target.value)}
+          options={[
+            { label: "Sort: Name", value: "name" },
+            { label: "Sort: Highest Rating", value: "rating" },
+            { label: "Sort: Most Reviews", value: "reviews" },
+            { label: "Sort: Highest Completion", value: "completion" },
+          ]}
+          style={{ minWidth: 210 }}
+        />
+      </div>
+
+      <Card>
+        {loading
+          ? <div style={{ padding: 32, textAlign: "center", color: T.muted }}>Loading performance data…</div>
+          : rows.length
+            ? <Table
+                columns={["Teacher", "Department", "Courses", "Student Reviews", "Avg Rating", "Avg Completion", "Actions"]}
+                rows={rows}
+              />
+            : <div style={{ padding: 32, textAlign: "center", color: T.muted }}>
+                {searchQ ? "No teachers match your search." : "No performance data available yet."}
+              </div>
+        }
       </Card>
+
+      {/* Reviews Drill-Down Modal */}
+      {selectedTeacher && (
+        <Modal open={!!selectedTeacher} title={`Reviews for ${selectedTeacher.teacherName}`} onClose={() => { setSelectedTeacher(null); setReviews([]); }}>
+          <div style={{ marginBottom: 16, display: "flex", gap: 16, alignItems: "center" }}>
+            <Avatar name={selectedTeacher.teacherName} size={48} color={T.accentG} />
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 18, color: T.text }}>{selectedTeacher.teacherName}</div>
+              <div style={{ color: T.muted, fontSize: 13 }}>{selectedTeacher.department}</div>
+              <div style={{ marginTop: 4 }}>{renderStars(selectedTeacher.averageRating)} &nbsp;
+                <span style={{ color: T.muted, fontSize: 12 }}>({selectedTeacher.totalReviews} review{selectedTeacher.totalReviews !== 1 ? "s" : ""})</span>
+              </div>
+            </div>
+          </div>
+
+          {reviewsLoading
+            ? <div style={{ padding: 24, textAlign: "center", color: T.muted }}>Loading reviews…</div>
+            : reviews.length === 0
+              ? <div style={{ padding: 24, textAlign: "center", color: T.muted }}>
+                  No reviews submitted yet. Students can rate this teacher after completing 50% of a course.
+                </div>
+              : <div style={{ display: "flex", flexDirection: "column", gap: 12, maxHeight: 400, overflowY: "auto" }}>
+                  {reviews.map((r, i) => (
+                    <div key={r.id || i} style={{
+                      background: T.surface2,
+                      border: `1px solid ${T.border}`,
+                      borderRadius: 10,
+                      padding: "12px 16px",
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <Avatar name={r.studentName || "?"} size={24} color={T.accentB} />
+                          <strong style={{ color: T.text, fontSize: 14 }}>{r.studentName || "Anonymous"}</strong>
+                        </div>
+                        <div>
+                          {renderStars(r.rating)}
+                          <span style={{ marginLeft: 8, fontSize: 11, color: T.muted }}>
+                            {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : ""}
+                          </span>
+                        </div>
+                      </div>
+                      {r.reviewText && (
+                        <p style={{ margin: 0, color: T.textM, fontSize: 13, lineHeight: 1.5, fontStyle: "italic" }}>
+                          "{r.reviewText}"
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+          }
+        </Modal>
+      )}
+
+      {/* Calculation Breakdown Modal */}
+      {selectedCalcTeacher && (
+        <Modal open={!!selectedCalcTeacher} title={`Performance Calculation for ${selectedCalcTeacher.teacherName}`} onClose={() => setSelectedCalcTeacher(null)}>
+          <div style={{ marginBottom: 20, display: "flex", gap: 16, alignItems: "center" }}>
+            <Avatar name={selectedCalcTeacher.teacherName} size={48} color={T.accentG} />
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 18, color: T.text }}>{selectedCalcTeacher.teacherName}</div>
+              <div style={{ color: T.muted, fontSize: 13 }}>{selectedCalcTeacher.teacherEmail}</div>
+              <div style={{ color: T.muted, fontSize: 13, marginTop: 2 }}>{selectedCalcTeacher.department} • {selectedCalcTeacher.courseCount} Course(s)</div>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* Assignment Submission Card */}
+            <div style={{
+              background: T.surface2,
+              border: `1px solid ${T.border}`,
+              borderRadius: 12,
+              padding: 16,
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <span style={{ fontWeight: 600, color: T.text, display: "flex", alignItems: "center", gap: 6 }}>
+                  📝 Assignment Completion
+                </span>
+                <span style={{ fontWeight: 700, color: T.accentB }}>{selectedCalcTeacher.assignScore ?? 0}%</span>
+              </div>
+              <ProgressBar value={selectedCalcTeacher.assignScore ?? 0} color={T.accentB} height={6} />
+              <div style={{ fontSize: 12, color: T.muted, marginTop: 8 }}>
+                Weighted at <strong>40%</strong> of the final rating (based on student assignment submission rates across all assigned courses).
+              </div>
+            </div>
+
+            {/* Exam Grade Card */}
+            <div style={{
+              background: T.surface2,
+              border: `1px solid ${T.border}`,
+              borderRadius: 12,
+              padding: 16,
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <span style={{ fontWeight: 600, color: T.text, display: "flex", alignItems: "center", gap: 6 }}>
+                  ✍️ Exam Grades Avg
+                </span>
+                <span style={{ fontWeight: 700, color: T.accentY }}>{selectedCalcTeacher.examScore ?? 0}%</span>
+              </div>
+              <ProgressBar value={selectedCalcTeacher.examScore ?? 0} color={T.accentY} height={6} />
+              <div style={{ fontSize: 12, color: T.muted, marginTop: 8 }}>
+                Weighted at <strong>40%</strong> of the final rating (based on student grades in completed or evaluating exams).
+              </div>
+            </div>
+
+            {/* Course Material Card */}
+            <div style={{
+              background: T.surface2,
+              border: `1px solid ${T.border}`,
+              borderRadius: 12,
+              padding: 16,
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <span style={{ fontWeight: 600, color: T.text, display: "flex", alignItems: "center", gap: 6 }}>
+                  📚 Course Material Coverage
+                </span>
+                <span style={{ fontWeight: 700, color: T.accentG }}>{selectedCalcTeacher.materialScore ?? 0}%</span>
+              </div>
+              <ProgressBar value={selectedCalcTeacher.materialScore ?? 0} color={T.accentG} height={6} />
+              <div style={{ fontSize: 12, color: T.muted, marginTop: 8 }}>
+                Weighted at <strong>20%</strong> of the final rating (based on the density of materials posted relative to course duration).
+              </div>
+            </div>
+
+            {/* Weighted Calculation Info */}
+            <div style={{
+              background: "linear-gradient(135deg, rgba(99,102,241,0.08), rgba(168,85,247,0.05))",
+              border: `1px solid rgba(99,102,241,0.2)`,
+              borderRadius: 12,
+              padding: 16,
+              textAlign: "center"
+            }}>
+              <div style={{ fontSize: 13, color: T.muted, marginBottom: 4 }}>Weighted Performance Formula</div>
+              <div style={{ fontSize: 12, fontFamily: "monospace", color: T.text, marginBottom: 8 }}>
+                (Assign × 0.40) + (Exams × 0.40) + (Materials × 0.20)
+              </div>
+              <div style={{ display: "flex", justifyContent: "center", alignItems: "baseline", gap: 8 }}>
+                <span style={{ fontSize: 14, color: T.muted }}>Weighted Progress:</span>
+                <span style={{ fontSize: 24, fontWeight: 800, color: (selectedCalcTeacher.avgCompletion ?? 0) >= 70 ? T.accentG : (selectedCalcTeacher.avgCompletion ?? 0) >= 40 ? T.accentY : "#ef4444" }}>
+                  {selectedCalcTeacher.avgCompletion ?? 0}%
+                </span>
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };
@@ -4965,6 +5601,223 @@ export const AdminSubscription = ({ onNav }) => {
   );
 };
 
+export const AdminLeaves = () => {
+  const [leaves, setLeaves] = useState([]);
+  const [batches, setBatches] = useState([]);
+  const [courses, setCourses] = useState([]);
+  
+  const [newDate, setNewDate] = useState("");
+  const [newDesc, setNewDesc] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  
+  const [selectedBatch, setSelectedBatch] = useState("");
+  const [selectedCourse, setSelectedCourse] = useState("");
+  const [workingDaysData, setWorkingDaysData] = useState(null);
+  const [loadingWorkingDays, setLoadingWorkingDays] = useState(false);
+
+  useEffect(() => {
+    loadLeavesAndBatches();
+  }, []);
+
+  const loadLeavesAndBatches = async () => {
+    setLoading(true);
+    try {
+      const [leavesList, batchesList] = await Promise.all([
+        getAdminLeaves().catch(() => []),
+        getAllBatches().catch(() => [])
+      ]);
+      setLeaves(Array.isArray(leavesList) ? leavesList : []);
+      setBatches(Array.isArray(batchesList) ? batchesList : []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedBatch) {
+      getBatchCourses(selectedBatch)
+        .then(res => setCourses(Array.isArray(res) ? res : []))
+        .catch(console.error);
+    } else {
+      setCourses([]);
+      setSelectedCourse("");
+      setWorkingDaysData(null);
+    }
+  }, [selectedBatch]);
+
+  useEffect(() => {
+    if (selectedBatch && selectedCourse) {
+      setLoadingWorkingDays(true);
+      getCourseWorkingDays(selectedBatch, selectedCourse)
+        .then(res => setWorkingDaysData(res))
+        .catch(err => {
+          console.error(err);
+          setWorkingDaysData(null);
+        })
+        .finally(() => setLoadingWorkingDays(false));
+    } else {
+      setWorkingDaysData(null);
+    }
+  }, [selectedBatch, selectedCourse]);
+
+  const handleAddLeave = async () => {
+    if (!newDate) {
+      alert("Please select a date.");
+      return;
+    }
+    const day = new Date(newDate).getDay();
+    if (day === 0) {
+      alert("Sunday is already a holiday. You cannot assign leave on a Sunday.");
+      return;
+    }
+    try {
+      setSaving(true);
+      await createAdminLeave({ date: newDate, description: newDesc });
+      alert("Leave day assigned successfully!");
+      setNewDate("");
+      setNewDesc("");
+      loadLeavesAndBatches();
+    } catch (err) {
+      alert("Error: " + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteLeave = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this leave day?")) return;
+    try {
+      await deleteAdminLeave(id);
+      alert("Leave day deleted successfully.");
+      loadLeavesAndBatches();
+    } catch (err) {
+      alert("Error: " + err.message);
+    }
+  };
+
+  return (
+    <div className="fade-up">
+      <PageHeader title="Leaves & Working Days" subtitle="Manage organizational holidays and calculate course calendars" />
+      
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 24 }} className="lms-responsive-grid-2">
+        {/* Assign Leaves Card */}
+        <Card style={{ padding: 24 }}>
+          <div style={{ fontFamily: "Syne", fontWeight: 700, fontSize: 16, marginBottom: 16 }}>Assign Leave Day</div>
+          <Input 
+            type="date" 
+            label="Date *" 
+            value={newDate} 
+            onChange={e => setNewDate(e.target.value)} 
+          />
+          <Input 
+            label="Description (e.g. Diwali Holiday) *" 
+            value={newDesc} 
+            onChange={e => setNewDesc(e.target.value)} 
+            placeholder="Holiday description"
+          />
+          <Btn variant="primary" size="lg" full onClick={handleAddLeave} disabled={saving}>
+            {saving ? "Assigning..." : "Assign Leave Day"}
+          </Btn>
+        </Card>
+
+        {/* Existing Leaves List */}
+        <Card style={{ padding: 24 }}>
+          <div style={{ fontFamily: "Syne", fontWeight: 700, fontSize: 16, marginBottom: 16 }}>Assigned Leaves</div>
+          {loading ? (
+            <div style={{ textAlign: "center", color: T.muted, padding: 20 }}>Loading leaves...</div>
+          ) : leaves.length === 0 ? (
+            <div style={{ textAlign: "center", color: T.muted, padding: 20 }}>No leaves assigned.</div>
+          ) : (
+            <div style={{ maxHeight: 220, overflowY: "auto" }}>
+              <Table 
+                columns={["Date", "Description", "Actions"]} 
+                rows={leaves.map(l => [
+                  <strong>{l.date}</strong>,
+                  l.description || "Holiday",
+                  <Btn size="xs" variant="danger" onClick={() => handleDeleteLeave(l.id)}>🗑</Btn>
+                ])}
+              />
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* Course Working Days Calculator Card */}
+      <Card style={{ padding: 24 }}>
+        <div style={{ fontFamily: "Syne", fontWeight: 700, fontSize: 16, marginBottom: 16 }}>Course Working Days Calculator</div>
+        
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }} className="lms-responsive-grid-2">
+          <Select 
+            label="Select Batch"
+            value={selectedBatch}
+            onChange={e => setSelectedBatch(e.target.value)}
+            options={[{ value: "", label: "-- Choose Batch --" }, ...batches.map(b => ({ value: b.id, label: `${b.name} (${b.status})` }))]}
+          />
+          <Select 
+            label="Select Course"
+            value={selectedCourse}
+            onChange={e => setSelectedCourse(e.target.value)}
+            options={[{ value: "", label: "-- Choose Course --" }, ...courses.map(c => ({ value: c.id, label: c.title }))]}
+            disabled={!selectedBatch}
+          />
+        </div>
+
+        {loadingWorkingDays ? (
+          <div style={{ textAlign: "center", padding: 40 }}>
+            <div style={{ fontSize: 24 }}>⏳</div>
+            <div style={{ color: T.muted, marginTop: 10 }}>Calculating working days calendar...</div>
+          </div>
+        ) : workingDaysData ? (
+          <div className="fade-up">
+            {/* Stats Summary */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 20 }} className="lms-responsive-grid-4">
+              <div style={{ background: T.bg3, padding: 14, borderRadius: 10, textAlign: "center" }}>
+                <div style={{ fontSize: 11, color: T.muted }}>Total Required Hours</div>
+                <div style={{ fontFamily: "Syne", fontSize: 20, fontWeight: 800, color: T.primaryL }}>{workingDaysData.durationHoursLimit}h</div>
+              </div>
+              <div style={{ background: T.bg3, padding: 14, borderRadius: 10, textAlign: "center" }}>
+                <div style={{ fontSize: 11, color: T.muted }}>Calculated Total Hours</div>
+                <div style={{ fontFamily: "Syne", fontSize: 20, fontWeight: 800, color: T.accentG }}>{workingDaysData.totalCalculatedHours}h</div>
+              </div>
+              <div style={{ background: T.bg3, padding: 14, borderRadius: 10, textAlign: "center" }}>
+                <div style={{ fontSize: 11, color: T.muted }}>Total Working Days</div>
+                <div style={{ fontFamily: "Syne", fontSize: 20, fontWeight: 800, color: T.accentG }}>{workingDaysData.totalWorkingDays} days</div>
+              </div>
+              <div style={{ background: T.bg3, padding: 14, borderRadius: 10, textAlign: "center" }}>
+                <div style={{ fontSize: 11, color: T.muted }}>Total Leave Days</div>
+                <div style={{ fontFamily: "Syne", fontSize: 20, fontWeight: 800, color: T.accentY }}>{workingDaysData.totalLeaveDays} days</div>
+              </div>
+            </div>
+
+            {/* Tabular Calendar View */}
+            <div style={{ fontFamily: "Syne", fontWeight: 700, fontSize: 14, marginBottom: 12 }}>Calendar Progression Table</div>
+            <Table 
+              columns={["#", "Date", "Day of Week", "Status", "Duration / Reason", "Accumulated Hours"]}
+              rows={workingDaysData.schedule.map((row, idx) => [
+                idx + 1,
+                <strong>{row.date}</strong>,
+                row.dayOfWeek,
+                <Badge type={row.status === "WORKING" ? "success" : "warning"}>{row.status}</Badge>,
+                row.reason + (row.hours > 0 ? ` (${row.hours}h)` : ""),
+                `${row.accumulatedHours}h`
+              ])}
+            />
+          </div>
+        ) : (
+          selectedBatch && selectedCourse && (
+            <div style={{ textAlign: "center", color: T.muted, padding: 20 }}>
+              No scheduled classes found in timetable for this course/batch. Please schedule timetable slots first.
+            </div>
+          )
+        )}
+      </Card>
+    </div>
+  );
+};
+
 // ─── ADMIN PAGES WRAPPER ──────────────────────────────────────────────────────
 const ADMIN_PAGES = {
   overview:       { comp: AdminOverview       },
@@ -4974,6 +5827,7 @@ const ADMIN_PAGES = {
   users:          { comp: AdminUsers          },
   courses:        { comp: AdminCourses        },
   batches:        { comp: AdminBatches        },
+  leaves:         { comp: AdminLeaves         },
   timetable:      { comp: AdminTimetable      },
   fees:           { comp: AdminFees           },
   payments:       { comp: AdminPayments       },
@@ -5016,6 +5870,13 @@ const AdminDashboard = ({ onLogout }) => {
   }, []);
 
   useEffect(() => {
+    const authData = JSON.parse(localStorage.getItem("zenelait-auth") || "{}");
+    const isSuperAdmin = authData.superAdmin === true;
+    if (page === "revenue" && !isSuperAdmin) {
+      setPage("overview");
+      return;
+    }
+
     const requiredFeatures = {
       timetable: "TIMETABLE",
       fees: "FEES",

@@ -12,6 +12,11 @@ import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @RestController
 @RequestMapping("/api/ai")
@@ -31,6 +36,103 @@ public class AiController {
     private final TeacherReviewRepository teacherReviewRepository;
     private final CertificateRepository   certificateRepository;
     private final CourseEnrollmentRequestRepository courseEnrollmentRequestRepository;
+
+    @org.springframework.beans.factory.annotation.Value("${gemini.api.key:}")
+    private String geminiApiKey;
+
+    @org.springframework.beans.factory.annotation.Value("${huggingface.api.key:}")
+    private String huggingfaceApiKey;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    private String callHuggingFace(String systemPrompt, String userMessage) {
+        if (huggingfaceApiKey == null || huggingfaceApiKey.trim().isEmpty()) {
+            return "⚠️ Hugging Face API key is missing. Please set 'huggingface.api.key' in application.properties.";
+        }
+
+        try {
+            String url = "https://api-inference.huggingface.co/v1/chat/completions";
+
+            // Construct payload compatible with OpenAI/HF Chat Completion API
+            Map<String, Object> systemMsg = Map.of("role", "system", "content", systemPrompt);
+            Map<String, Object> userMsg = Map.of("role", "user", "content", userMessage);
+            Map<String, Object> payload = Map.of(
+                "model", "Qwen/Qwen2.5-72B-Instruct",
+                "messages", List.of(systemMsg, userMsg),
+                "max_tokens", 800
+            );
+
+            String requestBody = objectMapper.writeValueAsString(payload);
+
+            HttpClient client = HttpClient.newHttpClient();
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer " + huggingfaceApiKey)
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .build();
+
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() == 200) {
+                Map<String, Object> responseMap = objectMapper.readValue(response.body(), Map.class);
+                List<Map<String, Object>> choices = (List<Map<String, Object>>) responseMap.get("choices");
+                if (choices != null && !choices.isEmpty()) {
+                    Map<String, Object> choice = choices.get(0);
+                    Map<String, Object> message = (Map<String, Object>) choice.get("message");
+                    if (message != null) {
+                        return (String) message.get("content");
+                    }
+                }
+            }
+            return "🤖 (Hugging Face Error) Code: " + response.statusCode() + " - " + response.body();
+        } catch (Exception e) {
+            return "⚠️ Could not connect to Hugging Face Assistant: " + e.getMessage();
+        }
+    }
+
+    private String callGemini(String prompt) {
+        if (geminiApiKey == null || geminiApiKey.trim().isEmpty()) {
+            return "⚠️ Gemini API key is missing. Please set 'gemini.api.key' in application.properties.";
+        }
+
+        try {
+            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + geminiApiKey;
+
+            // Structure prompt according to Gemini API payload format
+            Map<String, Object> textPart = Map.of("text", prompt);
+            Map<String, Object> parts = Map.of("parts", List.of(textPart));
+            Map<String, Object> contents = Map.of("contents", List.of(parts));
+
+            String requestBody = objectMapper.writeValueAsString(contents);
+
+            HttpClient client = HttpClient.newHttpClient();
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .build();
+
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() == 200) {
+                Map<String, Object> responseMap = objectMapper.readValue(response.body(), Map.class);
+                List<Map<String, Object>> candidates = (List<Map<String, Object>>) responseMap.get("candidates");
+                if (candidates != null && !candidates.isEmpty()) {
+                    Map<String, Object> content = (Map<String, Object>) candidates.get(0).get("content");
+                    if (content != null) {
+                        List<Map<String, Object>> partsList = (List<Map<String, Object>>) content.get("parts");
+                        if (partsList != null && !partsList.isEmpty()) {
+                            return (String) partsList.get(0).get("text");
+                        }
+                    }
+                }
+            }
+            return "🤖 (Gemini Error) Code: " + response.statusCode() + " - " + response.body();
+        } catch (Exception e) {
+            return "⚠️ Could not connect to Gemini Assistant: " + e.getMessage();
+        }
+    }
 
     @PostMapping("/chat")
     public ResponseEntity<ApiResponse<Map<String, String>>> chat(@RequestBody Map<String, String> body) {
@@ -192,13 +294,16 @@ public class AiController {
             return "📚 **My Academic Achievements**:\n" + grades;
         }
 
-        return "👋 Hello " + student.getName() + "! As your **Student Academic AI Assistant**, I am here to help you study. Try asking me:\n\n" +
-               "* 'Show my attendance percentage'\n" +
-               "* 'What are my current assignment grades?'\n" +
-               "* 'Have I earned any certificates?'\n" +
-               "* 'Show my unpaid fees / outstanding invoices'\n" +
-               "* 'Explain Java inheritance simply'\n" +
-               "* 'Provide study plans for computer science'";
+        String systemPrompt = String.format(
+            "You are the Student Academic AI Assistant for ZenelaitLMS. The student's name is %s. " +
+            "Answer their question in a friendly, encouraging academic tone. Keep formatting nice and readable.", student.getName()
+        );
+
+        if (huggingfaceApiKey != null && !huggingfaceApiKey.trim().isEmpty()) {
+            return callHuggingFace(systemPrompt, msg);
+        }
+
+        return callGemini(systemPrompt + "\n\nHere is the question they asked: " + msg);
     }
 
     // ── Parent AI Logic ───────────────────────────────────────────────

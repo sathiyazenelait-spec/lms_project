@@ -54,6 +54,9 @@ public class StudentController {
 	private final AssessmentAttemptRepository assessmentAttemptRepository;
 	private final AssessmentAnswerRepository assessmentAnswerRepository;
 	private final AdminRepository adminRepository;
+	private final CourseMaterialRepository courseMaterialRepository;
+	private final TimetableSlotRepository timetableSlotRepository;
+	private final LeaveDayRepository leaveDayRepository;
 
 	@GetMapping("/profile")
 	public ResponseEntity<ApiResponse<Student>> getProfile(@AuthenticationPrincipal Student student) {
@@ -317,6 +320,7 @@ public class StudentController {
 		return ResponseEntity.ok(ApiResponse.ok(submissionRepository.findByStudent(student)));
 	}
 
+	@Transactional
 	@GetMapping("/attendance")
 	public ResponseEntity<ApiResponse<Map<String, Object>>> getAttendance(@AuthenticationPrincipal Student student,
 			@RequestParam Long courseId) {
@@ -326,8 +330,69 @@ public class StudentController {
 		long present = attendanceRepository.countPresentByStudentAndCourse(student, course);
 		long total = attendanceRepository.countTotalByStudentAndCourse(student, course);
 		double pct = total > 0 ? (present * 100.0 / total) : 0;
-		return ResponseEntity.ok(ApiResponse.ok(Map.of("records", records, "present", present, "total", total,
-				"percentage", String.format("%.1f", pct))));
+
+		// Compute course working days & leave days based on student batch
+		int totalWorkingDays = 0;
+		int totalLeaveDays = 0;
+		Batch studentBatch = batchRepository.findAll().stream()
+				.filter(b -> b.getStudents().stream().anyMatch(s -> s.getId().equals(student.getId()))
+						&& b.getCourses().stream().anyMatch(c -> c.getId().equals(course.getId())))
+				.findFirst().orElse(null);
+
+		if (studentBatch != null && studentBatch.getStartDate() != null && studentBatch.getEndDate() != null) {
+			List<TimetableSlot> slots = timetableSlotRepository.findByCourse(course).stream()
+					.filter(s -> s.getBatch() == null || s.getBatch().getId().equals(studentBatch.getId()))
+					.toList();
+			List<LeaveDay> leaves = leaveDayRepository.findByDateBetween(studentBatch.getStartDate(), studentBatch.getEndDate());
+			LocalDate current = studentBatch.getStartDate();
+			LocalDate end = studentBatch.getEndDate();
+			double accumulatedHours = 0.0;
+			double durationHoursLimit = course.getDurationHours();
+
+			while (!current.isAfter(end)) {
+				String dayOfWeekStr = current.getDayOfWeek().name();
+				final String currentDayStr = dayOfWeekStr;
+				List<TimetableSlot> matchingSlots = slots.stream()
+						.filter(s -> s.getDayOfWeek().equalsIgnoreCase(currentDayStr))
+						.toList();
+
+				if (!matchingSlots.isEmpty()) {
+					boolean isSunday = current.getDayOfWeek().getValue() == 7;
+					final LocalDate currentLocalDate = current;
+					boolean isLeaveDay = leaves.stream().anyMatch(l -> l.getDate().equals(currentLocalDate));
+
+					if (isSunday || isLeaveDay) {
+						totalLeaveDays++;
+					} else {
+						totalWorkingDays++;
+						double dailyHours = 0;
+						for (TimetableSlot slot : matchingSlots) {
+							if (slot.getStartTime() != null && slot.getEndTime() != null) {
+								long mins = java.time.Duration.between(slot.getStartTime(), slot.getEndTime()).toMinutes();
+								dailyHours += mins / 60.0;
+							}
+						}
+						if (dailyHours == 0) dailyHours = 1.0;
+						accumulatedHours += dailyHours;
+					}
+
+					if (durationHoursLimit > 0 && accumulatedHours >= durationHoursLimit) {
+						break;
+					}
+				}
+				current = current.plusDays(1);
+			}
+		}
+
+		Map<String, Object> resp = new HashMap<>();
+		resp.put("records", records);
+		resp.put("present", present);
+		resp.put("total", total);
+		resp.put("percentage", String.format("%.1f", pct));
+		resp.put("totalWorkingDays", totalWorkingDays);
+		resp.put("totalLeaveDays", totalLeaveDays);
+
+		return ResponseEntity.ok(ApiResponse.ok(resp));
 	}
 
 	@Transactional
@@ -425,6 +490,7 @@ public class StudentController {
 	                        gMap.put("course", course.getTitle());
 	                        gMap.put("assignment", assignment.getTitle());
 	                        gMap.put("grade", gradeStr);
+	                        gMap.put("instructor", course.getTeacher() != null ? course.getTeacher().getName() : "Unassigned");
 	                        grades.add(gMap);
 	                    } else {
 	                        status = "SUBMITTED";
@@ -469,14 +535,45 @@ public class StudentController {
 	                gMap.put("course", courseName);
 	                gMap.put("assignment", exam.getTitle() + " (Exam)");
 	                gMap.put("grade", gradeStr);
+	                gMap.put("instructor", (exam.getCourse() != null && exam.getCourse().getTeacher() != null) ? exam.getCourse().getTeacher().getName() : "Unassigned");
 	                grades.add(gMap);
 	            }
+	        }
+
+	        java.util.Set<Long> classmateIds = new java.util.HashSet<>();
+	        if (studentBatches != null) {
+	            for (Batch b : studentBatches) {
+	                if (b.getStudents() != null) {
+	                    for (Student s : b.getStudents()) {
+	                        classmateIds.add(s.getId());
+	                    }
+	                }
+	            }
+	        }
+	        int classmateCount = classmateIds.size();
+	        if (classmateCount == 0) {
+	            if (studentCourses != null) {
+	                for (Course course : studentCourses) {
+	                    List<Object[]> courseStudents = studentRepository.findAllStudentsInCourse(course.getId());
+	                    if (courseStudents != null) {
+	                        for (Object[] row : courseStudents) {
+	                            classmateIds.add((Long) row[0]);
+	                        }
+	                    }
+	                }
+	            }
+	            classmateCount = classmateIds.size();
+	        }
+	        if (classmateCount == 0) {
+	            classmateCount = 1;
 	        }
 
 	        Map<String, Object> response = new HashMap<>();
 	        response.put("attendance", dto);
 	        response.put("tasks", tasks);
 	        response.put("grades", grades);
+	        response.put("classmateCount", classmateCount);
+	        response.put("enrolledCoursesCount", studentCourses.size());
 
 	        return ResponseEntity.ok(response);
 	    } catch (Exception e) {
@@ -685,6 +782,53 @@ public class StudentController {
 		    }
 
 		    result.put("completionStatus", completionPercent);
+
+		    // ── WEIGHTED COMPLETION: 40% Assignments + 40% Exam Scores + 20% Materials ──
+		    // Component 1: Assignment submission rate (already computed)
+		    double assignScore = completionPercent;
+
+		    // Component 2: Exam score rate (student's marks in COMPLETED/EVALUATING exams for this course)
+		    List<Exam> completedExams = examRepository.findByCourseId(courseId).stream()
+		        .filter(e -> e.getStatus() == Exam.ExamStatus.COMPLETED
+		                  || e.getStatus() == Exam.ExamStatus.EVALUATING)
+		        .collect(java.util.stream.Collectors.toList());
+		    double examScoreSum = 0.0;
+		    int examCount = 0;
+		    for (Exam e : completedExams) {
+		        java.util.Optional<ExamResult> res2 = examResultRepository.findByExam(e).stream()
+		            .filter(r -> r.getStudent().getId().equals(student.getId())
+		                      && r.getMarksObtained() != null
+		                      && e.getMaxMarks() != null && e.getMaxMarks() > 0)
+		            .findFirst();
+		        if (res2.isPresent()) {
+		            examScoreSum += (res2.get().getMarksObtained() * 100.0) / e.getMaxMarks();
+		            examCount++;
+		        }
+		    }
+		    double examScore = examCount > 0 ? examScoreSum / examCount : 0.0;
+
+		    // Component 3: Material coverage
+		    int materialCount = courseMaterialRepository.findByCourseOrderByCreatedAtDesc(course).size();
+		    int durationHours = course.getDurationHours() > 0 ? course.getDurationHours() : 1;
+		    double materialScore = Math.min(100.0, (materialCount * 2.0 * 100.0) / durationHours);
+
+		    // Compute weighted total (redistribute if a component has no data)
+		    double wAssign   = assignments.isEmpty()    ? 0 : 0.40;
+		    double wExam     = completedExams.isEmpty() ? 0 : 0.40;
+		    double wMaterial = 0.20;
+		    double totalW    = wAssign + wExam + wMaterial;
+		    int weightedCompletion = 0;
+		    if (totalW > 0) {
+		        weightedCompletion = (int) Math.round(
+		            ((wAssign * assignScore) + (wExam * examScore) + (wMaterial * materialScore)) / totalW
+		        );
+		    } else {
+		        weightedCompletion = (int) Math.round(materialScore);
+		    }
+		    result.put("weightedCompletion", weightedCompletion);
+		    result.put("examScore",          (int) Math.round(examScore));
+		    result.put("assignScore",        (int) Math.round(assignScore));
+		    result.put("materialScore",      (int) Math.round(materialScore));
 
 		    // ✅ Classmates
 		    List<Object[]> studentRows = studentRepository.findAllStudentsInCourse(courseId);

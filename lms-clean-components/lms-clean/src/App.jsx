@@ -107,6 +107,11 @@ export default function App() {
   const [globalLoading, setGlobalLoading] = useState(false);
 
   useEffect(() => {
+    const savedTheme = localStorage.getItem("zenelait-theme") || "dark";
+    document.documentElement.setAttribute("data-theme", savedTheme);
+  }, []);
+
+  useEffect(() => {
     const handleLoading = (e) => {
       setGlobalLoading(e.detail);
     };

@@ -77,6 +77,10 @@ public class Batch {
     @JoinColumn(name = "course_id")
     private Course course;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "class_teacher_id")
+    private Teacher classTeacher;
+
     private LocalDateTime createdAt;
 
     @PrePersist

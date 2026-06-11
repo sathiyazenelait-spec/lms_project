@@ -53,6 +53,8 @@ public class TeacherController {
     private final AssessmentAttemptRepository    assessmentAttemptRepository;
     private final AssessmentAnswerRepository     assessmentAnswerRepository;
     private final AssignmentTemplateRepository   assignmentTemplateRepository;
+    private final TimetableSlotRepository        timetableSlotRepository;
+    private final LeaveDayRepository             leaveDayRepository;
 
     // ── Profile ───────────────────────────────────────────────────────
     @GetMapping("/profile")
@@ -159,6 +161,7 @@ public class TeacherController {
     }
     
     // ── Get all students for a course with all attendance records ──
+    @Transactional
     @GetMapping("/courses/{courseId}/attendance")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getCourseAttendance(
             @PathVariable Long courseId,
@@ -320,6 +323,24 @@ public class TeacherController {
                 .orElseThrow(() -> new ResourceNotFoundException("Course not found: " + courseId));
         LocalDate date = LocalDate.parse((String) body.get("date"));
 
+        // 1. Check if Sunday
+        if (date.getDayOfWeek() == java.time.DayOfWeek.SUNDAY) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("Sundays are always holidays. Attendance cannot be marked on Sundays."));
+        }
+
+        // 2. Check if admin leave day
+        if (leaveDayRepository.findByDate(date).isPresent()) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("This date is assigned as a leave day by the Admin. Attendance cannot be marked."));
+        }
+
+        // 3. Check if scheduled working day in course timetable
+        String dayName = date.getDayOfWeek().name();
+        List<TimetableSlot> slots = timetableSlotRepository.findByCourse(course);
+        boolean isWorkingDay = slots.stream().anyMatch(slot -> slot.getDayOfWeek().equalsIgnoreCase(dayName));
+        if (!isWorkingDay) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("This day of the week (" + dayName + ") is not a scheduled working day for this course in the timetable."));
+        }
+
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> entries = (List<Map<String, Object>>) body.get("entries");
         for (Map<String, Object> entry : entries) {
@@ -329,13 +350,22 @@ public class TeacherController {
             Attendance.AttendanceStatus status =
                     Attendance.AttendanceStatus.valueOf((String) entry.get("status"));
 
-            Attendance record = Attendance.builder()
-                    .student(student)
-                    .course(course)
-                    .date(date)
-                    .status(status)
-                    .build();
+            // 4. Overwrite/update existing record instead of duplicating
+            java.util.Optional<Attendance> existing = attendanceRepository.findByStudentAndCourseAndDate(student, course, date);
+            Attendance record;
+            if (existing.isPresent()) {
+                record = existing.get();
+                record.setStatus(status);
+            } else {
+                record = Attendance.builder()
+                        .student(student)
+                        .course(course)
+                        .date(date)
+                        .status(status)
+                        .build();
+            }
             attendanceRepository.save(record);
+            
             // Pass teacher name+email so attendance email From shows the teacher
             notificationService.sendAttendanceNotification(student, record,
                     teacher != null ? teacher.getName() : null,
@@ -1716,5 +1746,170 @@ public class TeacherController {
             }
         }
         return ResponseEntity.ok(ApiResponse.ok("Reminders sent successfully", null));
+    }
+
+    @Transactional
+    @GetMapping("/courses/{courseId}/attendance/download")
+    public void downloadMonthlyAttendancePdf(
+            @PathVariable Long courseId,
+            @RequestParam(required = false) String month,
+            @AuthenticationPrincipal Teacher teacher,
+            jakarta.servlet.http.HttpServletResponse response
+    ) throws java.io.IOException {
+        
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new ResourceNotFoundException("Course not found"));
+                
+        if (!course.getTeacher().getId().equals(teacher.getId())) {
+            response.sendError(403, "Access Denied");
+            return;
+        }
+        
+        LocalDate firstDay;
+        if (month != null && !month.trim().isEmpty()) {
+            firstDay = LocalDate.parse(month + "-01");
+        } else {
+            firstDay = LocalDate.now().withDayOfMonth(1);
+        }
+        LocalDate lastDay = firstDay.withDayOfMonth(firstDay.lengthOfMonth());
+        
+        java.util.Set<Long> seen = new java.util.HashSet<>();
+        List<Student> students = new java.util.ArrayList<>();
+        if (course.getEnrolledStudents() != null) {
+            course.getEnrolledStudents().forEach(s -> {
+                if (seen.add(s.getId())) students.add(s);
+            });
+        }
+        batchRepository.findAll().stream()
+                .filter(b -> (b.getCourse() != null && b.getCourse().getId().equals(courseId))
+                        || (b.getCourses() != null && b.getCourses().stream().anyMatch(c -> c.getId().equals(courseId))))
+                .flatMap(b -> b.getStudents().stream())
+                .forEach(s -> {
+                    if (seen.add(s.getId())) students.add(s);
+                });
+                
+        List<Attendance> allAttendance = attendanceRepository.findByCourseId(courseId).stream()
+                .filter(a -> !a.getDate().isBefore(firstDay) && !a.getDate().isAfter(lastDay))
+                .toList();
+                
+        response.setContentType("application/pdf");
+        String headerKey = "Content-Disposition";
+        String headerValue = "attachment; filename=attendance_" + courseId + "_" + firstDay.getYear() + "_" + firstDay.getMonthValue() + ".pdf";
+        response.setHeader(headerKey, headerValue);
+        
+        com.lowagie.text.Document document = new com.lowagie.text.Document(com.lowagie.text.PageSize.A4.rotate());
+        com.lowagie.text.pdf.PdfWriter.getInstance(document, response.getOutputStream());
+        
+        document.open();
+        
+        com.lowagie.text.Font titleFont = com.lowagie.text.FontFactory.getFont(com.lowagie.text.FontFactory.HELVETICA_BOLD);
+        titleFont.setSize(16);
+        com.lowagie.text.Paragraph title = new com.lowagie.text.Paragraph("Monthly Student Attendance Report (Date-wise)", titleFont);
+        title.setAlignment(com.lowagie.text.Paragraph.ALIGN_CENTER);
+        document.add(title);
+        
+        com.lowagie.text.Font metaFont = com.lowagie.text.FontFactory.getFont(com.lowagie.text.FontFactory.HELVETICA);
+        metaFont.setSize(10);
+        com.lowagie.text.Paragraph meta = new com.lowagie.text.Paragraph("\nCourse: " + course.getTitle() + 
+                "  |  Teacher: " + teacher.getName() + 
+                "  |  Report Period: " + firstDay.toString() + " to " + lastDay.toString() + "\n\n", metaFont);
+        meta.setAlignment(com.lowagie.text.Paragraph.ALIGN_CENTER);
+        document.add(meta);
+        
+        List<LocalDate> dates = allAttendance.stream()
+                .map(Attendance::getDate)
+                .distinct()
+                .sorted()
+                .toList();
+                
+        int totalCols = 3 + dates.size();
+        com.lowagie.text.pdf.PdfPTable table = new com.lowagie.text.pdf.PdfPTable(totalCols);
+        table.setWidthPercentage(100f);
+        
+        float[] widths = new float[totalCols];
+        widths[0] = 2.0f; // S.No
+        widths[1] = 10.0f; // Student Name
+        for (int i = 0; i < dates.size(); i++) {
+            widths[2 + i] = 1.5f;
+        }
+        widths[totalCols - 1] = 6.0f; // Summary
+        table.setWidths(widths);
+        table.setSpacingBefore(10);
+        
+        com.lowagie.text.Font headFont = com.lowagie.text.FontFactory.getFont(com.lowagie.text.FontFactory.HELVETICA_BOLD);
+        headFont.setSize(8);
+        
+        com.lowagie.text.pdf.PdfPCell cell = new com.lowagie.text.pdf.PdfPCell(new com.lowagie.text.Phrase("S.No", headFont));
+        cell.setHorizontalAlignment(com.lowagie.text.Element.ALIGN_CENTER);
+        table.addCell(cell);
+        
+        cell = new com.lowagie.text.pdf.PdfPCell(new com.lowagie.text.Phrase("Student Name", headFont));
+        cell.setHorizontalAlignment(com.lowagie.text.Element.ALIGN_LEFT);
+        table.addCell(cell);
+        
+        for (LocalDate d : dates) {
+            String dayStr = String.format("%02d", d.getDayOfMonth());
+            cell = new com.lowagie.text.pdf.PdfPCell(new com.lowagie.text.Phrase(dayStr, headFont));
+            cell.setHorizontalAlignment(com.lowagie.text.Element.ALIGN_CENTER);
+            table.addCell(cell);
+        }
+        
+        cell = new com.lowagie.text.pdf.PdfPCell(new com.lowagie.text.Phrase("P / L / A", headFont));
+        cell.setHorizontalAlignment(com.lowagie.text.Element.ALIGN_CENTER);
+        table.addCell(cell);
+        
+        com.lowagie.text.Font dataFont = com.lowagie.text.FontFactory.getFont(com.lowagie.text.FontFactory.HELVETICA);
+        dataFont.setSize(8);
+        
+        com.lowagie.text.Font presentFont = com.lowagie.text.FontFactory.getFont(com.lowagie.text.FontFactory.HELVETICA_BOLD, 8, com.lowagie.text.Font.NORMAL, java.awt.Color.GREEN.darker());
+        com.lowagie.text.Font lateFont = com.lowagie.text.FontFactory.getFont(com.lowagie.text.FontFactory.HELVETICA_BOLD, 8, com.lowagie.text.Font.NORMAL, java.awt.Color.ORANGE);
+        com.lowagie.text.Font absentFont = com.lowagie.text.FontFactory.getFont(com.lowagie.text.FontFactory.HELVETICA_BOLD, 8, com.lowagie.text.Font.NORMAL, java.awt.Color.RED);
+        com.lowagie.text.Font absentDashFont = com.lowagie.text.FontFactory.getFont(com.lowagie.text.FontFactory.HELVETICA, 8, com.lowagie.text.Font.NORMAL, java.awt.Color.LIGHT_GRAY);
+        
+        int sNo = 1;
+        for (Student s : students) {
+            table.addCell(new com.lowagie.text.Phrase(String.valueOf(sNo++), dataFont));
+            table.addCell(new com.lowagie.text.Phrase(s.getName() + " (" + s.getUserId() + ")", dataFont));
+            
+            final Long currentStudentId = s.getId();
+            List<Attendance> studentAtt = allAttendance.stream()
+                    .filter(a -> a.getStudent().getId().equals(currentStudentId))
+                    .toList();
+            
+            long present = 0;
+            long late = 0;
+            long absent = 0;
+            
+            for (LocalDate d : dates) {
+                java.util.Optional<Attendance> recordOpt = studentAtt.stream()
+                        .filter(a -> a.getDate().equals(d))
+                        .findFirst();
+                if (recordOpt.isPresent()) {
+                    Attendance.AttendanceStatus status = recordOpt.get().getStatus();
+                    if (status == Attendance.AttendanceStatus.PRESENT) {
+                        present++;
+                        cell = new com.lowagie.text.pdf.PdfPCell(new com.lowagie.text.Phrase("P", presentFont));
+                    } else if (status == Attendance.AttendanceStatus.LATE) {
+                        late++;
+                        cell = new com.lowagie.text.pdf.PdfPCell(new com.lowagie.text.Phrase("L", lateFont));
+                    } else {
+                        absent++;
+                        cell = new com.lowagie.text.pdf.PdfPCell(new com.lowagie.text.Phrase("A", absentFont));
+                    }
+                } else {
+                    cell = new com.lowagie.text.pdf.PdfPCell(new com.lowagie.text.Phrase("-", absentDashFont));
+                }
+                cell.setHorizontalAlignment(com.lowagie.text.Element.ALIGN_CENTER);
+                table.addCell(cell);
+            }
+            
+            String summaryStr = present + "P / " + late + "L / " + absent + "A";
+            cell = new com.lowagie.text.pdf.PdfPCell(new com.lowagie.text.Phrase(summaryStr, dataFont));
+            cell.setHorizontalAlignment(com.lowagie.text.Element.ALIGN_CENTER);
+            table.addCell(cell);
+        }
+        
+        document.add(table);
+        document.close();
     }
 }

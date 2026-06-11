@@ -14,4 +14,12 @@ public interface ContactMessageRepository extends JpaRepository<ContactMsg, Long
     List<ContactMsg> findByOrganizationIdOrderByReceivedAtDesc(Long organizationId);
     List<ContactMsg> findByOrganizationIdAndStatus(Long organizationId, ContactMsg.MessageStatus status);
     long countByOrganizationIdAndStatus(Long organizationId, ContactMsg.MessageStatus status);
+
+    // Ultra Super Admin queries
+    List<ContactMsg> findByIsForUltraSuperAdminOrderByReceivedAtDesc(boolean isForUltraSuperAdmin);
+    List<ContactMsg> findByIsForUltraSuperAdminAndStatus(boolean isForUltraSuperAdmin, ContactMsg.MessageStatus status);
+
+    // Filtered global queries for regular admins
+    List<ContactMsg> findByIsForUltraSuperAdminFalseOrderByReceivedAtDesc();
+    List<ContactMsg> findByIsForUltraSuperAdminFalseAndStatus(ContactMsg.MessageStatus status);
 }

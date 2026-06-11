@@ -25,6 +25,7 @@ public class CourseMaterialController {
     private final BatchRepository          batchRepository;
     private final StudentRepository        studentRepository;
     private final NotificationService      notificationService;
+    private final LiveClassAttendanceRepository liveClassAttendanceRepository;
 
     // ═══════════════════════════════════════════════════════════════════════
     // TEACHER ENDPOINTS  —  /api/teacher/materials
@@ -68,6 +69,9 @@ public class CourseMaterialController {
             scheduledAt = LocalDateTime.parse(body.get("scheduledAt").toString());
         }
 
+        String joinType = body.containsKey("joinType") ? (String) body.get("joinType") : null;
+        String platformType = body.containsKey("platformType") ? (String) body.get("platformType") : null;
+
         CourseMaterial mat = CourseMaterial.builder()
                 .course(course)
                 .uploadedBy(teacher)
@@ -77,6 +81,9 @@ public class CourseMaterialController {
                 .content((String) body.get("content"))
                 .thumbnailUrl(body.containsKey("thumbnailUrl") ? (String) body.get("thumbnailUrl") : null)
                 .scheduledAt(scheduledAt)
+                .joinType(joinType)
+                .platformType(platformType)
+                .meetingStarted(false)
                 .visible(true)
                 .build();
 
@@ -178,6 +185,10 @@ public class CourseMaterialController {
         map.put("scheduledAt", m.getScheduledAt() != null ? m.getScheduledAt().toString() : null);
         map.put("visible",     m.isVisible());
         map.put("createdAt",   m.getCreatedAt() != null ? m.getCreatedAt().toString() : null);
+        map.put("joinType",    m.getJoinType());
+        map.put("platformType", m.getPlatformType());
+        map.put("meetingStarted", m.isMeetingStarted());
+        map.put("meetingStartedAt", m.getMeetingStartedAt() != null ? m.getMeetingStartedAt().toString() : null);
         // Course info
         if (m.getCourse() != null) {
             Map<String, Object> c = new LinkedHashMap<>();
@@ -198,10 +209,132 @@ public class CourseMaterialController {
     private List<Student> getStudentsForCourse(Course course) {
         Set<Long> seen = new HashSet<>();
         List<Student> students = new ArrayList<>();
+        
+        // 1. Batch enrollments
         batchRepository.findAll().stream()
-                .filter(b -> b.getCourse() != null && b.getCourse().getId().equals(course.getId()))
+                .filter(b -> (b.getCourse() != null && b.getCourse().getId().equals(course.getId()))
+                        || (b.getCourses() != null && b.getCourses().stream().anyMatch(c -> c.getId().equals(course.getId()))))
                 .flatMap(b -> b.getStudents().stream())
                 .forEach(s -> { if (seen.add(s.getId())) students.add(s); });
+                
+        // 2. Direct enrollments
+        studentRepository.findAll().stream()
+                .filter(s -> s.getEnrolledCourses().stream().anyMatch(ec -> ec.getId().equals(course.getId())))
+                .forEach(s -> { if (seen.add(s.getId())) students.add(s); });
+                
         return students;
+    }
+
+    @Transactional
+    @PostMapping("/api/teacher/materials/{id}/start")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> startLiveClass(
+            @AuthenticationPrincipal Teacher teacher,
+            @PathVariable Long id) {
+        CourseMaterial mat = materialRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Material not found"));
+        
+        if (mat.getType() != CourseMaterial.MaterialType.MEET_LINK) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("Only live classes can be started."));
+        }
+        
+        mat.setMeetingStarted(true);
+        mat.setMeetingStartedAt(LocalDateTime.now());
+        materialRepository.save(mat);
+        
+        // Notify students enrolled in the course
+        List<Student> students = getStudentsForCourse(mat.getCourse());
+        notificationService.onLiveClassStarted(mat, students);
+        
+        return ResponseEntity.ok(ApiResponse.ok("Live class started successfully", toMap(mat)));
+    }
+
+    @Transactional
+    @PostMapping("/api/student/materials/{id}/join")
+    public ResponseEntity<ApiResponse<Void>> joinLiveClass(
+            @AuthenticationPrincipal Student student,
+            @PathVariable Long id) {
+        CourseMaterial mat = materialRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Material not found"));
+                
+        if (mat.getType() != CourseMaterial.MaterialType.MEET_LINK) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("Only live classes can be joined."));
+        }
+        
+        // Find existing attendance or create new
+        Optional<LiveClassAttendance> existing = liveClassAttendanceRepository
+                .findByMaterialIdAndStudentId(id, student.getId());
+                
+        if (existing.isPresent()) {
+            LiveClassAttendance att = existing.get();
+            if (!att.isAttended()) {
+                att.setAttended(true);
+                att.setJoinedAt(LocalDateTime.now());
+                liveClassAttendanceRepository.save(att);
+            }
+        } else {
+            LiveClassAttendance att = LiveClassAttendance.builder()
+                    .materialId(id)
+                    .studentId(student.getId())
+                    .attended(true)
+                    .joinedAt(LocalDateTime.now())
+                    .build();
+            liveClassAttendanceRepository.save(att);
+        }
+        
+        return ResponseEntity.ok(ApiResponse.ok("Attendance recorded", null));
+    }
+
+    @Transactional
+    @GetMapping("/api/teacher/materials/{id}/attendance")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getLiveClassAttendance(
+            @AuthenticationPrincipal Teacher teacher,
+            @PathVariable Long id) {
+        CourseMaterial mat = materialRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Material not found"));
+                
+        if (mat.getType() != CourseMaterial.MaterialType.MEET_LINK) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("Only live classes track attendance."));
+        }
+        
+        List<Student> allEnrolled = getStudentsForCourse(mat.getCourse());
+        List<LiveClassAttendance> logs = liveClassAttendanceRepository.findByMaterialId(id);
+        
+        List<Map<String, Object>> studentList = new ArrayList<>();
+        long attendedCount = 0;
+        long missedCount = 0;
+        
+        for (Student s : allEnrolled) {
+            Optional<LiveClassAttendance> logOpt = logs.stream()
+                    .filter(log -> log.getStudentId().equals(s.getId()))
+                    .findFirst();
+                    
+            Map<String, Object> sm = new LinkedHashMap<>();
+            sm.put("id", s.getId());
+            sm.put("name", s.getName());
+            sm.put("userId", s.getUserId());
+            sm.put("email", s.getEmail());
+            sm.put("department", s.getDepartment());
+            
+            if (logOpt.isPresent() && logOpt.get().isAttended()) {
+                attendedCount++;
+                sm.put("attended", true);
+                sm.put("joinedAt", logOpt.get().getJoinedAt() != null ? logOpt.get().getJoinedAt().toString() : null);
+            } else {
+                missedCount++;
+                sm.put("attended", false);
+                sm.put("joinedAt", null);
+            }
+            studentList.add(sm);
+        }
+        
+        Map<String, Object> resp = new LinkedHashMap<>();
+        resp.put("materialId", id);
+        resp.put("title", mat.getTitle());
+        resp.put("totalEnrolled", allEnrolled.size());
+        resp.put("attendedCount", attendedCount);
+        resp.put("missedCount", missedCount);
+        resp.put("students", studentList);
+        
+        return ResponseEntity.ok(ApiResponse.ok(resp));
     }
 }

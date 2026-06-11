@@ -213,6 +213,27 @@ public class NotificationService {
         return warnings.stream().distinct().collect(Collectors.toList());
     }
 
+    public List<String> onLiveClassStarted(CourseMaterial material, List<Student> students) {
+        String materialTitle = material.getTitle();
+        String courseTitle   = material.getCourse() != null ? material.getCourse().getTitle() : "—";
+        String teacherName   = material.getUploadedBy() != null ? material.getUploadedBy().getName() : "Teacher";
+        String teacherEmail  = material.getUploadedBy() != null ? material.getUploadedBy().getEmail() : null;
+
+        String notifTitle = "🎥 Live Class Started: " + materialTitle;
+        String notifMsg = "Live session started by " + teacherName + " for " + courseTitle + ". Join now!";
+
+        String html = emailService.materialUploadEmail(
+                teacherName, courseTitle, "MEET_LINK", materialTitle,
+                "The live class has started! Click below to join the session.",
+                material.getContent());
+
+        // In-app notifications
+        students.forEach(s -> saveNotif(s.getEmail(), notifTitle, notifMsg, Notification.NotificationType.INFO));
+
+        List<String> studentEmails = students.stream().map(Student::getEmail).collect(Collectors.toList());
+        return sendAndCollect(studentEmails, notifTitle, html, teacherName, teacherEmail);
+    }
+
     // ══════════════════════════════════════════════════════════════════════════
     // 3. FEE ADDED → notify student + linked parents (in-app + email)
     // ══════════════════════════════════════════════════════════════════════════
@@ -755,6 +776,34 @@ public class NotificationService {
     public void onAdminCertificateIssued(AdminCertificate cert, String recipientEmail) {
         String[] saDetails = resolveSuperAdminDetails(cert.getOrganizationId());
         onAdminCertificateIssued(cert, recipientEmail, saDetails[0], saDetails[1]);
+    }
+
+    public void sendMissingAttendanceAlert(Course course, java.time.LocalDate date, List<String> adminEmails) {
+        String title = "⚠️ Missing Attendance Alert: " + course.getTitle();
+        String msg = "Attendance was not marked for course '" + course.getTitle() + "' on " + date + ".";
+        
+        String html = """
+            <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#fff5f5;border:1px solid #feb2b2;border-radius:10px;overflow:hidden;">
+              <div style="background:#f56565;padding:20px 24px;">
+                <h3 style="color:#fff;margin:0;">⚠️ Missing Attendance Alert</h3>
+              </div>
+              <div style="padding:24px;background:#fff;color:#2d3748;">
+                <p>Hello Admin,</p>
+                <p>No attendance records were submitted today for class:</p>
+                <table style="width:100%%;border-collapse:collapse;margin:16px 0;">
+                  <tr><td style="color:#718096;width:120px;padding:6px 0;">Course</td><td style="font-weight:700;">%s</td></tr>
+                  <tr><td style="color:#718096;padding:6px 0;">Date</td><td style="font-weight:700;">%s</td></tr>
+                  <tr><td style="color:#718096;padding:6px 0;">Teacher</td><td style="font-weight:600;">%s</td></tr>
+                </table>
+                <p style="font-size:13px;color:#718096;">Please ensure the teacher records the attendance in the LMS.</p>
+              </div>
+            </div>
+            """.formatted(course.getTitle(), date.toString(), course.getTeacher() != null ? course.getTeacher().getName() : "Unassigned");
+
+        adminEmails.forEach(email -> saveNotif(email, title, msg, Notification.NotificationType.WARNING));
+        
+        String[] saDetails = resolveSuperAdminDetails(course.getOrganizationId());
+        emailService.sendToAll(adminEmails, title, html, saDetails[0], saDetails[1]);
     }
 
 }

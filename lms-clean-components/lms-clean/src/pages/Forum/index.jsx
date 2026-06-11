@@ -14,6 +14,26 @@ import {
   deleteTeacherForumPost, deleteTeacherForumReply,
 } from "../../api/auth";
 
+// Inject responsive CSS styles for Forums
+const injectForumStyles = () => {
+  if (document.getElementById("lms-forum-styles")) return;
+  const style = document.createElement("style");
+  style.id = "lms-forum-styles";
+  style.textContent = `
+    @media (max-width: 768px) {
+      .lms-forum-grid {
+        grid-template-columns: 1fr !important;
+      }
+    }
+  `;
+  document.head.appendChild(style);
+};
+try {
+  injectForumStyles();
+} catch (e) {
+  console.error("Failed to inject forum styles", e);
+}
+
 // ── Time helper ───────────────────────────────────────────────────────────────
 const timeAgo = (dt) => {
   if (!dt) return "";
@@ -112,7 +132,7 @@ export const StudentForum = () => {
         subtitle="Discuss, ask questions, and collaborate with classmates and teachers"
         actions={selected && [<Btn variant="primary" onClick={() => setNewModal(true)}>✍ New Post</Btn>]} />
 
-      <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 20, minHeight: 600 }}>
+      <div className="lms-forum-grid" style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 20, minHeight: 600 }}>
         {/* ── Left: Course list ─── */}
         <div>
           {courses.map(c => (
@@ -388,7 +408,7 @@ export const TeacherForum = () => {
           <Btn variant="primary" onClick={() => setNewModal(true)}>📢 New Post</Btn>
         ]} />
 
-      <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 20, minHeight: 600 }}>
+      <div className="lms-forum-grid" style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 20, minHeight: 600 }}>
         {/* Course list */}
         <div>
           {courses.map(c => (

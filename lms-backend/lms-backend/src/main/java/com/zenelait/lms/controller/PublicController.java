@@ -24,6 +24,7 @@ public class PublicController {
     private final ContactMessageRepository contactMessageRepository;
     private final OrganizationRepository orgRepo;
     private final com.zenelait.lms.service.ultrasuperadmin.UltraSuperAdminService usaService;
+    private final com.zenelait.lms.repository.UltraSuperAdminRepository ultraSuperAdminRepository;
 
     @GetMapping("/departments")
     public ResponseEntity<ApiResponse<List<Department>>> getActiveDepartments() {
@@ -91,6 +92,11 @@ public class PublicController {
             }
         }
 
+        boolean isForUltraSuperAdmin = false;
+        if (body.containsKey("isForUltraSuperAdmin") && body.get("isForUltraSuperAdmin") != null) {
+            isForUltraSuperAdmin = Boolean.parseBoolean(body.get("isForUltraSuperAdmin").toString());
+        }
+
         ContactMsg msg = ContactMsg.builder()
                 .name(name)
                 .email(email)
@@ -98,13 +104,26 @@ public class PublicController {
                 .subject(subject.isBlank() ? "General Enquiry" : subject)
                 .message(message)
                 .organizationId(organizationId)
+                .isForUltraSuperAdmin(isForUltraSuperAdmin)
                 .status(ContactMsg.MessageStatus.NEW)
                 .build();
 
         contactMessageRepository.save(msg);
 
-        return ResponseEntity.ok(ApiResponse.ok("Message received",
-                Map.of("id", msg.getId(), "receivedAt", msg.getReceivedAt().toString())));
+        Map<String, Object> responseData = new java.util.HashMap<>();
+        responseData.put("id", msg.getId());
+        responseData.put("receivedAt", msg.getReceivedAt().toString());
+        
+        if (isForUltraSuperAdmin) {
+            String usaPhone = ultraSuperAdminRepository.findAll().stream()
+                    .filter(com.zenelait.lms.entity.UltraSuperAdmin::isActive)
+                    .findFirst()
+                    .map(com.zenelait.lms.entity.UltraSuperAdmin::getPhone)
+                    .orElse("+91 98765 43210");
+            responseData.put("ultraSuperAdminPhone", usaPhone);
+        }
+
+        return ResponseEntity.ok(ApiResponse.ok("Message received", responseData));
     }
 
     private String trim(Map<String, Object> body, String key) {

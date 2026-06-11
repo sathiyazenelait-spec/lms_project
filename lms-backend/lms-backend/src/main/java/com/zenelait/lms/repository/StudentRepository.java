@@ -45,6 +45,15 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     	    JOIN batch_students bs ON bs.student_id = s.id
     	    JOIN batch_courses bc ON bc.batch_id = bs.batch_id
     	    WHERE bc.course_id = :courseId
+
+    	    UNION
+
+    	    -- ✅ Legacy batch students
+    	    SELECT DISTINCT s.id, s.name, s.email, s.profile_pic_url
+    	    FROM students s
+    	    JOIN batch_students bs ON bs.student_id = s.id
+    	    JOIN batches b ON b.id = bs.batch_id
+    	    WHERE b.course_id = :courseId
     	""", nativeQuery = true)
     	List<Object[]> findAllStudentsInCourse(@Param("courseId") Long courseId);
 }

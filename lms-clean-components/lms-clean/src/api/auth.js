@@ -166,6 +166,7 @@ export async function unenrollStudentFromCourse(courseId, studentId) { return re
 // Batches
 export async function getAllBatches()             { return request("/admin/batches"); }
 export async function createBatch(body)          { return request("/admin/batches", { method: "POST", body: JSON.stringify(body) }); }
+export async function updateBatch(id, body)      { return request(`/admin/batches/${id}`, { method: "PUT", body: JSON.stringify(body) }); }
 export async function deleteBatch(id)            { return request(`/admin/batches/${id}`, { method: "DELETE" }); }
 export async function syncBatchStatuses()        { return request("/admin/batches/sync-status",   { method: "POST" }); }
 export async function cleanupCrossDeptStudents() { return request("/admin/batches/cleanup-dept",  { method: "POST" }); }
@@ -216,6 +217,9 @@ export async function replyStudentForumPost(postId, body)    { return request(`/
 export async function deleteStudentForumPost(postId)         { return request(`/student/forum/posts/${postId}`, { method: "DELETE" }); }
 export async function getStudentAttendanceTrack() {
   return request("/student/performance"); // logged-in student
+}
+export async function getStudentCourseAttendance(courseId) {
+  return request(`/student/attendance?courseId=${courseId}`);
 }
 
 // ── Teacher Forum ─────────────────────────────────────────────────────────────
@@ -281,6 +285,9 @@ export async function uploadMaterial(body)             { return request("/teache
 export async function toggleMaterialVisibility(id)    { return request(`/teacher/materials/${id}/visibility`, { method: "PATCH" }); }
 export async function deleteMaterial(id)               { return request(`/teacher/materials/${id}`, { method: "DELETE" }); }
 export async function getStudentMaterials(courseId)   { return request(`/student/materials${courseId ? `?courseId=${courseId}` : ""}`); }
+export async function startLiveClass(id)               { return request(`/teacher/materials/${id}/start`, { method: "POST" }); }
+export async function joinLiveClass(id)                { return request(`/student/materials/${id}/join`, { method: "POST" }); }
+export async function getLiveClassAttendance(id)       { return request(`/teacher/materials/${id}/attendance`); }
 export async function getTeacherColleagues(dept) { return request(`/teacher/colleagues${dept ? `?department=${encodeURIComponent(dept)}` : ""}`); }
 export async function getTeacherDeptStudents(dept) { return request(`/teacher/dept-students?department=${encodeURIComponent(dept)}`); }
 export async function getTeacherBatches() { return request("/teacher/batches"); }
@@ -627,6 +634,23 @@ export async function usaSendRenewalReminder(subId) {
   });
 }
 
+export async function usaGetContactMessages(status) {
+  return request(`/ultra-super-admin/contact-messages${status ? `?status=${status}` : ""}`);
+}
+
+export async function usaUpdateContactStatus(id, status) {
+  return request(`/ultra-super-admin/contact-messages/${id}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status })
+  });
+}
+
+export async function usaDeleteContactMessage(id) {
+  return request(`/ultra-super-admin/contact-messages/${id}`, {
+    method: "DELETE"
+  });
+}
+
 export async function forgotPassword(email, role) {
   return request("/auth/forgot-password", {
     method: "POST",
@@ -639,4 +663,51 @@ export async function resetPassword(email, role, otp, newPassword) {
     method: "POST",
     body: JSON.stringify({ email, role, otp, newPassword }),
   });
-}
+}
+
+// ── Admin Leave & Working Days Calculation ──
+export async function getAdminLeaves() {
+  return request("/admin/leaves");
+}
+
+export async function createAdminLeave(body) {
+  return request("/admin/leaves", {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function deleteAdminLeave(id) {
+  return request(`/admin/leaves/${id}`, {
+    method: "DELETE"
+  });
+}
+
+export async function getCourseWorkingDays(batchId, courseId) {
+  return request(`/admin/batches/${batchId}/courses/${courseId}/working-days`);
+}
+
+// ── Teacher Attendance PDF Download ──
+export async function downloadMonthlyAttendancePdf(courseId, month) {
+  const raw = localStorage.getItem("zenelait-auth");
+  let token = null;
+  if (raw) {
+    try { token = JSON.parse(raw).accessToken; } catch {}
+  }
+  const url = `${API_BASE}/teacher/courses/${courseId}/attendance/download?month=${month || ""}`;
+  const res = await fetch(url, {
+    headers: {
+      Authorization: token ? `Bearer ${token}` : "",
+    }
+  });
+  if (!res.ok) throw new Error("Failed to download PDF");
+  const blob = await res.blob();
+  const downloadUrl = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = downloadUrl;
+  a.download = `attendance_${courseId}_${month || "report"}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+

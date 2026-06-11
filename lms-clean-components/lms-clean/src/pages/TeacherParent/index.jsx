@@ -13,7 +13,7 @@ import {
   getTeacherProfile, updateTeacherProfile,
   getTeacherCourses, getTeacherAssignments,
   getSubmissionsForAssignment, gradeSubmission,
-  markAttendance, getAttendanceForDate,
+  markAttendance, getAttendanceForDate, downloadMonthlyAttendancePdf,
   createTeacherAnnouncement, getTeacherNotifications,
   markTeacherNotifRead, markTeacherNotifReadAll,
   getActiveDepartments, getActiveDepartmentsByOrg, getTeacherStudents, createTeacherCourse, getTeacherColleagues, getTeacherDeptStudents, getTeacherBatches, assignCourseToBatch,
@@ -25,6 +25,7 @@ import {
   bulkExtendAssignmentDeadline, sendTaskReminder, requestResubmission,
   getTaskTemplates, createTaskTemplate, deleteTaskTemplate,
   getTeacherMaterials, uploadMaterial, toggleMaterialVisibility, deleteMaterial,
+  startLiveClass, getLiveClassAttendance,
   getTeacherTimetableData, getParentTimetable,getCourseStudents,getTeacherCourseStudents,getCourseAttendance,
   searchParentsForChat, getTeacherConversations, getTeacherChatMessages, sendTeacherMessage,
   searchTeachersForChat, getParentConversations, getParentChatMessages, sendParentMessage,
@@ -54,6 +55,45 @@ const showEmailWarnings = (warnings) => {
       "\n\nCheck server logs for details.");
   }
 };
+
+// Inject responsive CSS styles for Teacher Dashboard
+const injectTeacherStyles = () => {
+  if (document.getElementById("lms-teacher-styles")) return;
+  const style = document.createElement("style");
+  style.id = "lms-teacher-styles";
+  style.textContent = `
+    @media (max-width: 768px) {
+      .lms-responsive-grid-4 {
+        grid-template-columns: 1fr !important;
+      }
+      .lms-responsive-grid-3 {
+        grid-template-columns: 1fr !important;
+      }
+      .lms-responsive-grid-2 {
+        grid-template-columns: 1fr !important;
+      }
+      .lms-responsive-split-2-1 {
+        grid-template-columns: 1fr !important;
+      }
+      .lms-responsive-split-1-2 {
+        grid-template-columns: 1fr !important;
+      }
+      .hide-mobile {
+        display: none !important;
+      }
+      .lms-cert-table th, .lms-cert-table td {
+        padding: 8px 6px !important;
+        font-size: 11px !important;
+      }
+    }
+  `;
+  document.head.appendChild(style);
+};
+try {
+  injectTeacherStyles();
+} catch (e) {
+  console.error("Failed to inject teacher styles", e);
+}
 
 // ════════════════════════════════════════════════════════════════════════════════
 // TEACHER PAGES
@@ -117,13 +157,13 @@ export const TeacherOverview = () => {
         title="Teacher Dashboard" 
         subtitle={`Welcome, ${profile?.name || "Teacher"}! Here's your teaching overview.`} 
       />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 18, marginBottom: 24 }}>
+      <div className="lms-responsive-grid-4" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 18, marginBottom: 24 }}>
         <StatCard icon="👨‍🎓" label="Total Students" value={loading ? "…" : String(studentsCount)} change={`Across ${courses.length} courses`} color={T.accent} />
         <StatCard icon="📚" label="Active Courses" value={loading ? "…" : String(courses.length)} change="Live schedule" color={T.primaryL} />
         <StatCard icon="📝" label="Pending Grading" value={loading ? "…" : String(totalPending)} change="Assignments to grade" color={T.accentY} />
         <StatCard icon="⭐" label="My Rating" value={loading ? "…" : `${avg} / 5`} change="By students" color={T.accentG} />
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20 }}>
+      <div className="lms-responsive-split-2-1" style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20 }}>
         <div>
           <Card style={{ marginBottom: 20 }}>
             <div style={{ fontFamily: "Syne", fontWeight: 700, fontSize: 15, marginBottom: 16 }}>My Courses</div>
@@ -310,7 +350,7 @@ export const TeacherProfile = () => {
       <ProfileAlert pct={pct} missing={missing} onComplete={() => fileRef.current?.click()} />
       <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFileChange} />
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 24 }}>
+      <div className="lms-responsive-split-1-2" style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 24 }}>
         <Card style={{ textAlign: "center", padding: 32 }}>
           <DonutChart pct={pct} color={T.accentG} label="Complete" />
           <div style={{ fontSize: 13, fontWeight: 700, color: T.accentG, marginTop: 8 }}>Profile {pct}% Complete</div>
@@ -790,8 +830,12 @@ export const TeacherLiveClasses = () => {
   const [loading, setLoading]       = useState(false);
   const [fileInfo, setFileInfo]     = useState(null); // { name, size, base64, mimeType }
   const fileRef                     = React.useRef();
+  const [attendanceModal, setAttendanceModal] = useState(null);
+  const [attendanceData, setAttendanceData]   = useState(null);
+  const [loadingAttendance, setLoadingAttendance] = useState(false);
   const [form, setForm] = useState({
     type: "NOTE", title: "", description: "", content: "", scheduledAt: "",
+    joinType: "EXTERNAL", platformType: "MEET"
   });
 
   useEffect(() => {
@@ -834,9 +878,23 @@ export const TeacherLiveClasses = () => {
 
   const resetModal = () => {
     setModal(false);
-    setForm({ type: "NOTE", title: "", description: "", content: "", scheduledAt: "" });
+    setForm({ type: "NOTE", title: "", description: "", content: "", scheduledAt: "", joinType: "EXTERNAL", platformType: "MEET" });
     setFileInfo(null);
     if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const openAttendance = async (material) => {
+    setAttendanceModal(material);
+    setLoadingAttendance(true);
+    setAttendanceData(null);
+    try {
+      const data = await getLiveClassAttendance(material.id);
+      setAttendanceData(data);
+    } catch (err) {
+      alert("Failed to fetch attendance: " + err.message);
+    } finally {
+      setLoadingAttendance(false);
+    }
   };
 
   const handleUpload = async () => {
@@ -1030,6 +1088,15 @@ export const TeacherLiveClasses = () => {
                             hour: "2-digit", minute: "2-digit" })}
                         </div>
                       )}
+                      <div style={{ fontSize: 11, color: T.muted, marginBottom: 6 }}>
+                        ⚙️ Mode: <strong>{m.joinType === "EMBEDDED" ? "Embedded Iframe" : "External Link"}</strong>
+                        {m.platformType && ` | Platform: ${m.platformType}`}
+                      </div>
+                      {m.meetingStarted && m.meetingStartedAt && (
+                        <div style={{ fontSize: 11, color: T.accentG, fontWeight: 700, marginBottom: 6 }}>
+                          🟢 Class started at {new Date(m.meetingStartedAt).toLocaleTimeString("en-IN", { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      )}
                       <a href={m.content} target="_blank" rel="noreferrer"
                         style={{ display: "flex", alignItems: "center", gap: 6,
                           fontSize: 12, color: T.accentG, fontWeight: 700, textDecoration: "none" }}>
@@ -1041,10 +1108,28 @@ export const TeacherLiveClasses = () => {
                     </div>
                   )}
 
-                  <div style={{ display: "flex", gap: 8 }}>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <Btn size="xs" variant="ghost" onClick={() => handleToggle(m.id)}>
                       {m.visible ? "🙈 Hide" : "👁 Show"}
                     </Btn>
+                    {m.type === "MEET_LINK" && (
+                      <>
+                        <Btn size="xs" variant="primary" onClick={async () => {
+                          try {
+                            await startLiveClass(m.id);
+                            alert("Live class started successfully! Notifications have been sent to enrolled students.");
+                            loadMaterials(selected);
+                          } catch (err) {
+                            alert("Failed to start live class: " + err.message);
+                          }
+                        }}>
+                          🚀 {m.meetingStarted ? "Restart Class" : "Start Class"}
+                        </Btn>
+                        <Btn size="xs" variant="secondary" onClick={() => openAttendance(m)}>
+                          📊 Attendance
+                        </Btn>
+                      </>
+                    )}
                     <Btn size="xs" variant="danger" onClick={() => handleDelete(m.id)}>🗑</Btn>
                   </div>
                 </div>
@@ -1138,9 +1223,13 @@ export const TeacherLiveClasses = () => {
         {form.type === "MEET_LINK" && (
           <>
             <Select label="Platform"
-              value={form.content.includes("zoom") ? "zoom" : form.content.includes("teams") ? "teams" : "meet"}
-              onChange={() => {}}
-              options={[{ value: "meet", label: "Google Meet" }, { value: "zoom", label: "Zoom" }, { value: "teams", label: "Microsoft Teams" }]} />
+              value={form.platformType}
+              onChange={e => setForm(f => ({ ...f, platformType: e.target.value }))}
+              options={[{ value: "MEET", label: "Google Meet" }, { value: "ZOOM", label: "Zoom" }, { value: "TEAMS", label: "Microsoft Teams" }, { value: "OTHER", label: "Other" }]} />
+            <Select label="Join Type"
+              value={form.joinType}
+              onChange={e => setForm(f => ({ ...f, joinType: e.target.value }))}
+              options={[{ value: "EXTERNAL", label: "External Link" }, { value: "EMBEDDED", label: "Embedded Iframe (Join in App)" }]} />
             <Input label="Meeting Link *"
               placeholder="https://meet.google.com/abc-defg-hij"
               value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} />
@@ -1153,9 +1242,175 @@ export const TeacherLiveClasses = () => {
           {saving ? "Uploading…" : `Upload ${typeLabel[form.type]} →`}
         </Btn>
       </Modal>
+
+      {/* Attendance Modal */}
+      <Modal open={!!attendanceModal} onClose={() => setAttendanceModal(null)} title={`Attendance: ${attendanceModal?.title}`}>
+        {loadingAttendance ? (
+          <div style={{ padding: 30, textAlign: "center", color: T.muted }}>Loading attendance records...</div>
+        ) : !attendanceData ? (
+          <div style={{ padding: 30, textAlign: "center", color: T.muted }}>No data loaded.</div>
+        ) : (
+          <div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 20 }}>
+              <Card style={{ padding: 12, textAlign: "center", background: T.bg3 }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: T.primary }}>{attendanceData.totalEnrolled}</div>
+                <div style={{ fontSize: 10, color: T.muted, textTransform: "uppercase" }}>Enrolled</div>
+              </Card>
+              <Card style={{ padding: 12, textAlign: "center", background: `${T.accentG}10` }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: T.accentG }}>{attendanceData.attendedCount}</div>
+                <div style={{ fontSize: 10, color: T.muted, textTransform: "uppercase" }}>Attended</div>
+              </Card>
+              <Card style={{ padding: 12, textAlign: "center", background: `${T.danger}10` }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: T.danger }}>{attendanceData.missedCount}</div>
+                <div style={{ fontSize: 10, color: T.muted, textTransform: "uppercase" }}>Missed</div>
+              </Card>
+            </div>
+
+            <div style={{ maxHeight: 300, overflowY: "auto", border: `1px solid ${T.border}`, borderRadius: 8 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead>
+                  <tr style={{ background: T.bg3, borderBottom: `1px solid ${T.border}`, textAlign: "left" }}>
+                    <th style={{ padding: 10 }}>Student</th>
+                    <th style={{ padding: 10 }}>Email</th>
+                    <th style={{ padding: 10 }}>Status</th>
+                    <th style={{ padding: 10 }}>Joined At</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {attendanceData.students?.map(s => (
+                    <tr key={s.id} style={{ borderBottom: `1px solid ${T.border}` }}>
+                      <td style={{ padding: 10, fontWeight: 600 }}>{s.name} ({s.userId})</td>
+                      <td style={{ padding: 10, color: T.muted }}>{s.email}</td>
+                      <td style={{ padding: 10 }}>
+                        <Badge type={s.attended ? "success" : "danger"}>
+                          {s.attended ? "Attended" : "Missed"}
+                        </Badge>
+                      </td>
+                      <td style={{ padding: 10, color: T.muted }}>
+                        {s.joinedAt ? new Date(s.joinedAt).toLocaleTimeString("en-IN", { hour: '2-digit', minute: '2-digit' }) : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                  {(!attendanceData.students || attendanceData.students.length === 0) && (
+                    <tr>
+                      <td colSpan="4" style={{ padding: 20, textAlign: "center", color: T.muted }}>No enrolled students in this course.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };
+export const TeacherAttendanceMonthlyReport = ({
+  courseId, setCourseId, courses, students, allAttendance, selectedMonth, setSelectedMonth
+}) => {
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    if (!courseId) {
+      alert("Please select a course first.");
+      return;
+    }
+    try {
+      setDownloading(true);
+      await downloadMonthlyAttendancePdf(courseId, selectedMonth);
+    } catch (err) {
+      alert("Failed to download PDF: " + err.message);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const monthRecords = allAttendance.filter(a => a.date && a.date.startsWith(selectedMonth));
+
+  return (
+    <div className="fade-up">
+      <Card style={{ marginBottom: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div style={{ fontFamily: "Syne", fontWeight: 700, fontSize: 16 }}>
+            Monthly Attendance Report Filters
+          </div>
+          {courseId && (
+            <Btn variant="primary" onClick={handleDownload} disabled={downloading}>
+              {downloading ? "Generating PDF..." : "📥 Download PDF Report"}
+            </Btn>
+          )}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <Select
+            label="Course *"
+            value={courseId}
+            onChange={e => setCourseId(e.target.value)}
+            options={[
+              { value: "", label: "-- Select Course --" },
+              ...courses.map(c => ({
+                value: String(c.id),
+                label: c.title
+              }))
+            ]}
+          />
+
+          <Input
+            label="Filter Month *"
+            type="month"
+            value={selectedMonth}
+            onChange={e => setSelectedMonth(e.target.value)}
+          />
+        </div>
+      </Card>
+
+      {!courseId ? (
+        <Card style={{ textAlign: "center", padding: 40 }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>📊</div>
+          <div style={{ fontWeight: 700, fontSize: 16, color: T.text, marginBottom: 6 }}>No Course Selected</div>
+          <div style={{ color: T.muted, fontSize: 13 }}>Please select a course above to view the monthly report.</div>
+        </Card>
+      ) : students.length === 0 ? (
+        <Card style={{ textAlign: "center", padding: 40 }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>👥</div>
+          <div style={{ fontWeight: 700, fontSize: 16, color: T.text, marginBottom: 6 }}>No Students Enrolled</div>
+          <div style={{ color: T.muted, fontSize: 13 }}>There are no students enrolled in this course/batch.</div>
+        </Card>
+      ) : (
+        <Card>
+          <div style={{ fontFamily: "Syne", fontWeight: 700, fontSize: 15, marginBottom: 14, color: T.text }}>
+            Monthly Attendance Summary Table ({selectedMonth})
+          </div>
+          <Table
+            columns={["S.No", "Student Name", "Present Days", "Late Days", "Absent Days", "Attendance Rate"]}
+            rows={students.map((s, idx) => {
+              const studentRecords = monthRecords.filter(a => a.studentId === s.id);
+              const total = studentRecords.length;
+              const present = studentRecords.filter(a => a.status === "PRESENT").length;
+              const late = studentRecords.filter(a => a.status === "LATE").length;
+              const absent = studentRecords.filter(a => a.status === "ABSENT").length;
+              
+              const attendedCount = present + late;
+              const rate = total > 0 ? Math.round((attendedCount / total) * 100) : 0;
+
+              return [
+                idx + 1,
+                <strong>{s.name} ({s.userId})</strong>,
+                <span style={{ color: T.accentG, fontWeight: 700 }}>{present}</span>,
+                <span style={{ color: T.accentY, fontWeight: 700 }}>{late}</span>,
+                <span style={{ color: T.accentR, fontWeight: 700 }}>{absent}</span>,
+                <Badge type={rate >= 75 ? "success" : rate >= 50 ? "warning" : "danger"}>
+                  {rate}% ({attendedCount}/{total})
+                </Badge>
+              ];
+            })}
+          />
+        </Card>
+      )}
+    </div>
+  );
+};
+
 //dynamic attendence 
 export const TeacherAttendance = () => {
   const [courses, setCourses]     = useState([]);
@@ -1166,6 +1421,7 @@ export const TeacherAttendance = () => {
   const [saving, setSaving]       = useState(false);
   const [allAttendance, setAllAttendance] = useState([]);
   const [subTab, setSubTab]       = useState("Mark Attendance");
+  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
 
   // ✅ Load only courses initially
   useEffect(() => {
@@ -1323,7 +1579,7 @@ export const TeacherAttendance = () => {
     <div className="fade-up">
       <PageHeader title="Attendance Monitor" />
 
-      <Tabs tabs={["Mark Attendance", "Attendance Analytics"]} active={subTab} onChange={setSubTab} />
+      <Tabs tabs={["Mark Attendance", "Attendance Analytics", "Monthly Report"]} active={subTab} onChange={setSubTab} />
 
       {subTab === "Mark Attendance" ? (
         <>
@@ -1437,6 +1693,16 @@ export const TeacherAttendance = () => {
             )}
           </Card>
         </>
+      ) : subTab === "Monthly Report" ? (
+        <TeacherAttendanceMonthlyReport 
+          courseId={courseId} 
+          setCourseId={setCourseId} 
+          courses={courses} 
+          students={students} 
+          allAttendance={allAttendance} 
+          selectedMonth={selectedMonth} 
+          setSelectedMonth={setSelectedMonth} 
+        />
       ) : (
         // ─── ATTENDANCE ANALYTICS DASHBOARD ───
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -3981,7 +4247,7 @@ export const TeacherPerformance = () => {
   return (
     <div className="fade-up">
       <PageHeader title="My Performance Evaluation" />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 18, marginBottom: 24 }}>
+      <div className="lms-responsive-grid-4" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 18, marginBottom: 24 }}>
         <StatCard icon="⭐" label="Student Rating" value={`${avg} / 5`} color={T.accentY} />
         <StatCard icon="💬" label="Total Reviews" value={String(count)} color={T.accentG} />
         <StatCard icon="📚" label="Rating Level" value={avg >= 4.5 ? "Excellent" : avg >= 4.0 ? "Good" : avg >= 3.0 ? "Satisfactory" : "Needs Improvement"} color={T.primaryL} />
@@ -4112,7 +4378,7 @@ export const TeacherMessages = () => {
   return (
     <div className="fade-up">
       <PageHeader title="Messages" subtitle="Direct communication with parents" />
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20, alignItems: "start" }}>
+      <div className="lms-responsive-split-2-1" style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20, alignItems: "start" }}>
 
         {/* ── Chat Panel ── */}
         <Card style={{ padding: 0, overflow: "hidden" }}>
@@ -4394,7 +4660,7 @@ export const TeacherCertifications = () => {
     <div className="fade-up">
       <PageHeader title="Certifications Management" />
       
-      <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 20, marginBottom: 24 }}>
+      <div className="lms-responsive-grid-2" style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 20, marginBottom: 24 }}>
         {/* Left Side: Issued Certificates List */}
         <Card style={{ padding: 24 }}>
           <div style={{ fontFamily: "Syne", fontWeight: 700, fontSize: 16, marginBottom: 16 }}>
@@ -4408,12 +4674,12 @@ export const TeacherCertifications = () => {
             </div>
           ) : (
             <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <table className="lms-cert-table" style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ borderBottom: `1px solid ${T.bg2}` }}>
                     <th style={{ padding: "8px 12px", textAlign: "left", fontSize: 11, color: T.muted }}>Student</th>
                     <th style={{ padding: "8px 12px", textAlign: "left", fontSize: 11, color: T.muted }}>Course</th>
-                    <th style={{ padding: "8px 12px", textAlign: "left", fontSize: 11, color: T.muted }}>Cert Number</th>
+                    <th className="hide-mobile" style={{ padding: "8px 12px", textAlign: "left", fontSize: 11, color: T.muted }}>Cert Number</th>
                     <th style={{ padding: "8px 12px", textAlign: "center", fontSize: 11, color: T.muted }}>Grade</th>
                     <th style={{ padding: "8px 12px", textAlign: "left", fontSize: 11, color: T.muted }}>Issue Date</th>
                   </tr>
@@ -4423,7 +4689,7 @@ export const TeacherCertifications = () => {
                     <tr key={c.id} style={{ borderBottom: `1.5px solid ${T.bg2}` }}>
                       <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 700 }}>{c.studentName}</td>
                       <td style={{ padding: "10px 12px", fontSize: 12, color: T.muted }}>{c.courseTitle}</td>
-                      <td style={{ padding: "10px 12px", fontSize: 11, fontFamily: "monospace", color: T.primaryL }}>{c.certificateNumber}</td>
+                      <td className="hide-mobile" style={{ padding: "10px 12px", fontSize: 11, fontFamily: "monospace", color: T.primaryL }}>{c.certificateNumber}</td>
                       <td style={{ padding: "10px 12px", textAlign: "center" }}>
                         <Badge variant={c.grade === "A+" || c.grade === "A" ? "success" : "primary"}>
                           {c.grade}
@@ -4877,7 +5143,7 @@ export const ParentProfile = () => {
       <ProfileAlert pct={pct} missing={missing} onComplete={() => fileRef.current?.click()} />
       <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFileChange} />
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 24 }}>
+      <div className="lms-responsive-split-1-2" style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 24 }}>
         <Card style={{ textAlign: "center", padding: 32 }}>
           <DonutChart pct={pct} color={T.accentR} label="Complete" />
           <div style={{ fontSize: 13, fontWeight: 700, color: T.accentR, marginTop: 8 }}>Profile {pct}% Complete</div>
@@ -4908,11 +5174,11 @@ export const ParentProfile = () => {
         </Card>
         <Card style={{ padding: 28 }}>
           <div style={{ fontFamily: "Syne", fontSize: 17, fontWeight: 800, marginBottom: 20 }}>Update Profile</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <div className="lms-responsive-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <Input label="Full Name *"     value={form.name}    onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
             <Input label="Email"           value={form.email}   onChange={() => {}} style={{ opacity: 0.6, cursor: "not-allowed" }} />
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <div className="lms-responsive-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <Input label="Mobile Number *" value={form.phone}   onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="+91 98765 43210" />
             <Select label="Gender" value={form.gender} onChange={e => setForm(f => ({ ...f, gender: e.target.value }))}
               options={[{ value: "", label: "Select" }, "Male", "Female", "Other"].map(o => typeof o === "string" ? { value: o, label: o } : o)} />
@@ -5198,7 +5464,7 @@ export const ParentTracking = () => {
               </Card>
 
               {/* Batches and Courses Layout */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 24, alignItems: "start" }}>
+              <div className="lms-responsive-split-1-2" style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 24, alignItems: "start" }}>
                 {/* Enrolled Batches */}
                 <Card style={{ padding: 20 }}>
                   <h3 style={{ fontFamily: "Syne", fontSize: 18, fontWeight: 700, marginBottom: 16, borderBottom: `1px solid ${T.border}`, paddingBottom: 10 }}>Enrolled Batches</h3>
@@ -5226,7 +5492,7 @@ export const ParentTracking = () => {
                   {courses.length === 0 ? (
                     <div style={{ color: T.muted, fontSize: 13, textAlign: "center", padding: "20px 0" }}>No enrolled courses found.</div>
                   ) : (
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                    <div className="lms-responsive-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                       {courses.map(c => (
                         <div key={c.id} style={{ background: T.bg3, padding: 16, borderRadius: 12, display: "flex", flexDirection: "column", justifyContent: "space-between", border: `1px solid ${T.border}` }}>
                           <div>
@@ -5296,7 +5562,7 @@ export const ParentTracking = () => {
                 </Card>
               ) : (
                 <>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+                  <div className="lms-responsive-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
                     {/* Bar Chart: Course Attendance Rate */}
                     <Card style={{ padding: 20 }}>
                       <h4 style={{ fontFamily: "Syne", fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Course Attendance Rate (%)</h4>
@@ -5972,7 +6238,7 @@ export const ParentMessages = () => {
   return (
     <div className="fade-up">
       <PageHeader title="Message to Teacher" subtitle="One-on-one communication with teachers" />
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20, alignItems: "start" }}>
+      <div className="lms-responsive-split-2-1" style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20, alignItems: "start" }}>
 
         {/* ── Chat Panel ── */}
         <Card style={{ padding: 0, overflow: "hidden" }}>

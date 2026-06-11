@@ -62,9 +62,13 @@ public class AdminController {
     private final TeacherAuthService teacherAuthService;
     private final ParentAuthService parentAuthService;
     private final TeacherReviewRepository teacherReviewRepository;
+    private final AssignmentSubmissionRepository submissionRepository;
+    private final ExamResultRepository   examResultRepository;
     private final CourseEnrollmentRequestRepository courseEnrollmentRequestRepository;
     private final AdminCertificateRepository adminCertificateRepository;
     private final SubscriptionService        subscriptionService;
+    private final LeaveDayRepository         leaveDayRepository;
+    private final com.zenelait.lms.service.notification.AttendanceNotificationScheduler attendanceNotificationScheduler;
 
     // ── Dashboard Stats ──────────────────────────────────────────────
     @GetMapping("/stats")
@@ -79,9 +83,12 @@ public class AdminController {
         long totalDepartments  = orgId != null ? departmentRepository.findByOrganizationId(orgId).size()         : departmentRepository.count();
         long activeCourses     = orgId != null ? courseRepository.findByOrganizationIdAndStatus(orgId, Course.CourseStatus.ACTIVE).size() : courseRepository.findByStatus(Course.CourseStatus.ACTIVE).size();
         long activeBatches     = orgId != null ? batchRepository.findByOrganizationIdAndStatus(orgId, Batch.BatchStatus.ACTIVE).size()   : batchRepository.findByStatus(Batch.BatchStatus.ACTIVE).size();
-        java.math.BigDecimal revenueThisMonth = orgId != null
-                ? feeRepository.getTotalRevenueThisMonthByOrg(orgId)
-                : feeRepository.getTotalRevenueThisMonth();
+        java.math.BigDecimal revenueThisMonth = java.math.BigDecimal.ZERO;
+        if (admin.isSuperAdmin()) {
+            revenueThisMonth = orgId != null
+                    ? feeRepository.getTotalRevenueThisMonthByOrg(orgId)
+                    : feeRepository.getTotalRevenueThisMonth();
+        }
         return ResponseEntity.ok(ApiResponse.ok(Map.of(
                 "totalStudents",     totalStudents,
                 "totalTeachers",     totalTeachers,
@@ -140,6 +147,9 @@ public class AdminController {
     @GetMapping("/revenue/summary")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getRevenueSummary(
             @AuthenticationPrincipal Admin admin) {
+        if (!admin.isSuperAdmin()) {
+            throw new BadRequestException("Access denied. Only Super Admins can access revenue reports.");
+        }
         LocalDate sixMonthsAgo = LocalDate.now().minusMonths(6);
         Long orgId = admin.getOrganizationId();
 
@@ -584,14 +594,31 @@ public class AdminController {
     /** GET /api/admin/courses/{id}/students — students directly enrolled */
     @Transactional
     @GetMapping("/courses/{id}/students")
-    public ResponseEntity<ApiResponse<List<Student>>> getCourseStudents(
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getCourseStudents(
             @PathVariable Long id) {
         courseRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Course not found: " + id));
-        // Use native query to bypass lazy loading issues
-        List<Student> enrolled = studentRepository.findAll().stream()
+        
+        List<Object[]> allStudentsInCourse = studentRepository.findAllStudentsInCourse(id);
+        
+        // Find set of directly enrolled student IDs
+        java.util.Set<Long> directStudentIds = studentRepository.findAll().stream()
                 .filter(s -> s.getEnrolledCourses().stream()
                         .anyMatch(ec -> ec.getId().equals(id)))
+                .map(Student::getId)
+                .collect(java.util.stream.Collectors.toSet());
+        
+        List<Map<String, Object>> enrolled = allStudentsInCourse.stream()
+                .map(row -> {
+                    Map<String, Object> m = new java.util.HashMap<>();
+                    Long studentId = ((Number) row[0]).longValue();
+                    m.put("id", studentId);
+                    m.put("name", row[1]);
+                    m.put("email", row[2]);
+                    m.put("profilePicUrl", row[3]);
+                    m.put("isDirect", directStudentIds.contains(studentId));
+                    return m;
+                })
                 .collect(java.util.stream.Collectors.toList());
         return ResponseEntity.ok(ApiResponse.ok(enrolled));
     }
@@ -655,6 +682,15 @@ public class AdminController {
             m.put("status",     b.getStatus() != null ? b.getStatus().name() : "UPCOMING");
             m.put("createdAt",  b.getCreatedAt());
 
+            if (b.getClassTeacher() != null) {
+                Map<String, Object> tm = new java.util.LinkedHashMap<>();
+                tm.put("id",   b.getClassTeacher().getId());
+                tm.put("name", b.getClassTeacher().getName());
+                m.put("classTeacher", tm);
+            } else {
+                m.put("classTeacher", null);
+            }
+
             // Students — include id + name so frontend can show count & unenrolled list
             java.util.Set<Student> studs = b.getStudents();
             List<Map<String, Object>> studentList = studs == null ? List.of() :
@@ -716,6 +752,15 @@ public class AdminController {
         } else {
             status = Batch.BatchStatus.ACTIVE; // start <= today <= end
         }
+
+        Teacher classTeacher = null;
+        if (body.containsKey("classTeacherId") && body.get("classTeacherId") != null) {
+            String ctIdStr = body.get("classTeacherId").toString();
+            if (!ctIdStr.isEmpty()) {
+                classTeacher = teacherRepository.findById(Long.valueOf(ctIdStr)).orElse(null);
+            }
+        }
+
         Batch batch = Batch.builder()
                 .name((String) body.get("name"))
                 .department((String) body.get("department"))
@@ -723,10 +768,63 @@ public class AdminController {
                 .endDate(endDate)
                 .status(status)  // ← auto-calculated
                 .organizationId(admin.getOrganizationId())
+                .classTeacher(classTeacher)
                 .build();
 
         batchRepository.save(batch);
         return ResponseEntity.ok(ApiResponse.ok("Batch created", batch));
+    }
+
+    @Transactional
+    @PutMapping("/batches/{id}")
+    public ResponseEntity<ApiResponse<Batch>> updateBatch(
+            @PathVariable Long id,
+            @AuthenticationPrincipal Admin admin,
+            @RequestBody Map<String, Object> body) {
+        Batch batch = batchRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Batch not found: " + id));
+
+        if (body.containsKey("name")) {
+            batch.setName((String) body.get("name"));
+        }
+        if (body.containsKey("department")) {
+            batch.setDepartment((String) body.get("department"));
+        }
+        if (body.containsKey("startDate")) {
+            batch.setStartDate(LocalDate.parse((String) body.get("startDate")));
+        }
+        if (body.containsKey("endDate")) {
+            batch.setEndDate(LocalDate.parse((String) body.get("endDate")));
+        }
+        if (body.containsKey("classTeacherId")) {
+            Object ctIdObj = body.get("classTeacherId");
+            if (ctIdObj == null || ctIdObj.toString().isEmpty()) {
+                batch.setClassTeacher(null);
+            } else {
+                Long teacherId = Long.valueOf(ctIdObj.toString());
+                Teacher teacher = teacherRepository.findById(teacherId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Teacher not found: " + teacherId));
+                batch.setClassTeacher(teacher);
+            }
+        }
+
+        // Auto-set status based on dates
+        LocalDate startDate = batch.getStartDate();
+        LocalDate endDate   = batch.getEndDate();
+        LocalDate today     = LocalDate.now();
+
+        Batch.BatchStatus status;
+        if (startDate.isAfter(today)) {
+            status = Batch.BatchStatus.UPCOMING;
+        } else if (endDate.isBefore(today)) {
+            status = Batch.BatchStatus.COMPLETED;
+        } else {
+            status = Batch.BatchStatus.ACTIVE;
+        }
+        batch.setStatus(status);
+
+        batchRepository.save(batch);
+        return ResponseEntity.ok(ApiResponse.ok("Batch updated successfully", batch));
     }
     
     @PostMapping("/batches/sync-status")
@@ -1163,8 +1261,8 @@ public class AdminController {
                     : contactMessageRepository.findByOrganizationIdOrderByReceivedAtDesc(orgId);
         } else {
             msgs = status != null
-                    ? contactMessageRepository.findByStatus(status)
-                    : contactMessageRepository.findAllByOrderByReceivedAtDesc();
+                    ? contactMessageRepository.findByIsForUltraSuperAdminFalseAndStatus(status)
+                    : contactMessageRepository.findByIsForUltraSuperAdminFalseOrderByReceivedAtDesc();
         }
         return ResponseEntity.ok(ApiResponse.ok(msgs));
     }
@@ -1322,22 +1420,139 @@ public class AdminController {
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getTeachersPerformance(
             @AuthenticationPrincipal Admin admin) {
         Long orgId = admin.getOrganizationId();
-        List<Teacher> teachers = orgId != null 
-                ? teacherRepository.findByOrganizationId(orgId) 
+        List<Teacher> teachers = orgId != null
+                ? teacherRepository.findByOrganizationId(orgId)
                 : teacherRepository.findAll();
+
+        // Fetch all org batches once for reuse
+        List<Batch> allBatches = orgId != null
+                ? batchRepository.findByOrganizationId(orgId)
+                : batchRepository.findAll();
 
         List<Map<String, Object>> list = new java.util.ArrayList<>();
         for (Teacher t : teachers) {
-            Double avgRating = teacherReviewRepository.getAverageRatingForTeacher(t.getId());
-            Long totalReviews = teacherReviewRepository.countReviewsForTeacher(t.getId());
+            Double avgRating    = teacherReviewRepository.getAverageRatingForTeacher(t.getId());
+            Long   totalReviews = teacherReviewRepository.countReviewsForTeacher(t.getId());
+
+            List<Course> teacherCourses = courseRepository.findByTeacherAndOrganizationId(t, orgId);
+
+            // ── Weighted Completion: 40% Assignments + 40% Exam Scores + 20% Materials ──
+            double totalWeightedSum = 0.0;
+            int    completionEntries = 0;
+
+            double totalAssignScoreSum = 0.0;
+            int    assignScoreCount    = 0;
+            double totalExamScoreSum   = 0.0;
+            int    examScoreCount      = 0;
+            double totalMaterialScoreSum = 0.0;
+            int    materialScoreCount    = 0;
+
+            for (Course c : teacherCourses) {
+
+                // ── Collect all students in this course (direct + via batches) ──
+                java.util.Set<Student> students = new java.util.HashSet<>();
+                if (c.getEnrolledStudents() != null) students.addAll(c.getEnrolledStudents());
+                allBatches.stream()
+                    .filter(b -> (b.getCourse() != null && b.getCourse().getId().equals(c.getId()))
+                              || (b.getCourses() != null && b.getCourses().stream().anyMatch(bc -> bc.getId().equals(c.getId()))))
+                    .forEach(b -> { if (b.getStudents() != null) students.addAll(b.getStudents()); });
+
+                if (students.isEmpty()) continue;
+
+                // ── COMPONENT 1 (40%): Assignment submission rate ──────────────
+                List<Assignment> assignments = assignmentRepository.findByCourse(c);
+                // ── COMPONENT 2 (40%): Exam score rate ────────────────────────
+                List<Exam> courseExams = examRepository.findByCourseId(c.getId()).stream()
+                    .filter(e -> e.getStatus() == Exam.ExamStatus.COMPLETED
+                              || e.getStatus() == Exam.ExamStatus.EVALUATING)
+                    .collect(java.util.stream.Collectors.toList());
+                // ── COMPONENT 3 (20%): Material coverage ──────────────────────
+                int materialCount = courseMaterialRepository.findByCourseOrderByCreatedAtDesc(c).size();
+                int durationHours = c.getDurationHours() > 0 ? c.getDurationHours() : 1;
+                // Material coverage: how well-stocked the course is (capped at 100%)
+                // 1 material per 2 hours = 100%; each material contributes ~50%/hr
+                double materialScore = Math.min(100.0, (materialCount * 2.0 * 100.0) / durationHours);
+
+                for (Student s : students) {
+                    // Assignment component
+                    double assignScore = 0.0;
+                    if (!assignments.isEmpty()) {
+                        long submitted = assignments.stream()
+                            .filter(a -> submissionRepository.existsByAssignmentAndStudent(a, s))
+                            .count();
+                        assignScore = (submitted * 100.0) / assignments.size();
+                        totalAssignScoreSum += assignScore;
+                        assignScoreCount++;
+                    }
+
+                    // Exam score component
+                    double examScore = 0.0;
+                    if (!courseExams.isEmpty()) {
+                        double examScoreSum = 0.0;
+                        int    examCount    = 0;
+                        for (Exam e : courseExams) {
+                            List<ExamResult> results = examResultRepository.findByExam(e);
+                            java.util.Optional<ExamResult> result = results.stream()
+                                .filter(r -> r.getStudent().getId().equals(s.getId())
+                                          && r.getMarksObtained() != null
+                                          && e.getMaxMarks() != null && e.getMaxMarks() > 0)
+                                .findFirst();
+                            if (result.isPresent()) {
+                                examScoreSum += (result.get().getMarksObtained() * 100.0) / e.getMaxMarks();
+                                examCount++;
+                            }
+                        }
+                        examScore = examCount > 0 ? examScoreSum / examCount : 0.0;
+                        totalExamScoreSum += examScore;
+                        examScoreCount++;
+                    }
+
+                    // Material component
+                    totalMaterialScoreSum += materialScore;
+                    materialScoreCount++;
+
+                    // Weighted total: 40% assign + 40% exam + 20% material
+                    double hasExamWeight    = courseExams.isEmpty()    ? 0 : 0.40;
+                    double hasAssignWeight  = assignments.isEmpty()    ? 0 : 0.40;
+                    double materialWeight   = 0.20;
+                    double remaining        = 1.0 - hasExamWeight - hasAssignWeight - materialWeight;
+                    // Redistribute remaining weight to whichever components exist
+                    double totalWeight = hasAssignWeight + hasExamWeight + materialWeight;
+                    double weighted;
+                    if (totalWeight == 0) {
+                        weighted = materialScore; // fallback: only material
+                    } else {
+                        weighted = ((hasAssignWeight * assignScore)
+                                 + (hasExamWeight   * examScore)
+                                 + (materialWeight  * materialScore))
+                                 / totalWeight * 100.0 / 100.0;
+                    }
+
+                    totalWeightedSum += weighted;
+                    completionEntries++;
+                }
+            }
+
+            int avgCompletion = completionEntries > 0
+                    ? (int) Math.round(totalWeightedSum / completionEntries)
+                    : 0;
+
+            int finalAssignScore = assignScoreCount > 0 ? (int) Math.round(totalAssignScoreSum / assignScoreCount) : 0;
+            int finalExamScore = examScoreCount > 0 ? (int) Math.round(totalExamScoreSum / examScoreCount) : 0;
+            int finalMaterialScore = materialScoreCount > 0 ? (int) Math.round(totalMaterialScoreSum / materialScoreCount) : 0;
 
             Map<String, Object> m = new java.util.LinkedHashMap<>();
-            m.put("teacherId", t.getId());
-            m.put("teacherName", t.getName());
-            m.put("teacherEmail", t.getEmail());
-            m.put("department", t.getDepartment());
+            m.put("teacherId",     t.getId());
+            m.put("teacherName",   t.getName());
+            m.put("teacherEmail",  t.getEmail());
+            m.put("department",    t.getDepartment());
+            m.put("courseCount",   teacherCourses.size());
             m.put("averageRating", avgRating != null ? avgRating : 0.0);
-            m.put("totalReviews", totalReviews != null ? totalReviews : 0L);
+            m.put("totalReviews",  totalReviews != null ? totalReviews : 0L);
+            m.put("avgCompletion", avgCompletion);
+            m.put("assignScore",   finalAssignScore);
+            m.put("examScore",     finalExamScore);
+            m.put("materialScore", finalMaterialScore);
             list.add(m);
         }
         return ResponseEntity.ok(ApiResponse.ok(list));
@@ -1476,5 +1691,140 @@ public class AdminController {
             throw new BadRequestException("packageId is required.");
         }
         return ResponseEntity.ok(ApiResponse.ok("Subscribed successfully", subscriptionService.subscribeOrganization(admin.getOrganizationId(), packageId)));
+    }
+
+    // ── Leave Management Endpoints ──
+    @GetMapping("/leaves")
+    public ResponseEntity<ApiResponse<List<LeaveDay>>> getLeaves(@AuthenticationPrincipal Admin admin) {
+        return ResponseEntity.ok(ApiResponse.ok(leaveDayRepository.findAll()));
+    }
+
+    @PostMapping("/leaves")
+    public ResponseEntity<ApiResponse<LeaveDay>> createLeave(
+            @AuthenticationPrincipal Admin admin,
+            @RequestBody Map<String, String> body) {
+        LocalDate date = LocalDate.parse(body.get("date"));
+        if (date.getDayOfWeek().getValue() == 7) {
+            throw new BadRequestException("Sundays are automatically holidays. You cannot manually assign leaves on Sundays.");
+        }
+        LeaveDay leave = LeaveDay.builder()
+                .date(date)
+                .description(body.get("description"))
+                .organizationId(admin.getOrganizationId())
+                .build();
+        return ResponseEntity.ok(ApiResponse.ok("Leave day assigned successfully", leaveDayRepository.save(leave)));
+    }
+
+    @DeleteMapping("/leaves/{id}")
+    public ResponseEntity<ApiResponse<Void>> deleteLeave(@PathVariable Long id) {
+        leaveDayRepository.deleteById(id);
+        return ResponseEntity.ok(ApiResponse.ok("Leave day deleted successfully", null));
+    }
+
+    // ── Working Days & Leave Days Calculation ──
+    @GetMapping("/batches/{batchId}/courses/{courseId}/working-days")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getWorkingDays(
+            @PathVariable Long batchId,
+            @PathVariable Long courseId,
+            @AuthenticationPrincipal Admin admin) {
+            
+        Batch batch = batchRepository.findById(batchId)
+                .orElseThrow(() -> new ResourceNotFoundException("Batch not found: " + batchId));
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new ResourceNotFoundException("Course not found: " + courseId));
+                
+        List<TimetableSlot> slots = timetableSlotRepository.findByCourse(course).stream()
+                .filter(s -> s.getBatch() == null || s.getBatch().getId().equals(batchId))
+                .toList();
+        
+        List<LeaveDay> leaves = leaveDayRepository.findByDateBetween(batch.getStartDate(), batch.getEndDate());
+        
+        List<Map<String, Object>> tabularData = new ArrayList<>();
+        LocalDate current = batch.getStartDate();
+        LocalDate end = batch.getEndDate();
+        
+        int totalWorkingDays = 0;
+        int totalLeaveDays = 0;
+        double accumulatedHours = 0.0;
+        double durationHoursLimit = course.getDurationHours();
+        
+        while (!current.isAfter(end)) {
+            String dayOfWeekStr = current.getDayOfWeek().name();
+            
+            final String currentDayStr = dayOfWeekStr;
+            List<TimetableSlot> matchingSlots = slots.stream()
+                    .filter(s -> s.getDayOfWeek().equalsIgnoreCase(currentDayStr))
+                    .toList();
+                    
+            if (!matchingSlots.isEmpty()) {
+                double dailyHours = 0;
+                for (TimetableSlot slot : matchingSlots) {
+                    if (slot.getStartTime() != null && slot.getEndTime() != null) {
+                        long mins = java.time.Duration.between(slot.getStartTime(), slot.getEndTime()).toMinutes();
+                        dailyHours += mins / 60.0;
+                    }
+                }
+                if (dailyHours == 0) {
+                    dailyHours = 1.0;
+                }
+                
+                boolean isSunday = current.getDayOfWeek().getValue() == 7;
+                final LocalDate currentLocalDate = current;
+                boolean isLeaveDay = leaves.stream().anyMatch(l -> l.getDate().equals(currentLocalDate));
+                
+                Map<String, Object> row = new java.util.LinkedHashMap<>();
+                row.put("date", current.toString());
+                row.put("dayOfWeek", dayOfWeekStr);
+                
+                if (isSunday) {
+                    row.put("status", "LEAVE");
+                    row.put("reason", "Sunday");
+                    row.put("hours", 0.0);
+                    totalLeaveDays++;
+                } else if (isLeaveDay) {
+                    LeaveDay leave = leaves.stream().filter(l -> l.getDate().equals(currentLocalDate)).findFirst().get();
+                    row.put("status", "LEAVE");
+                    row.put("reason", leave.getDescription() != null ? leave.getDescription() : "Admin Assigned Leave");
+                    row.put("hours", 0.0);
+                    totalLeaveDays++;
+                } else {
+                    row.put("status", "WORKING");
+                    row.put("reason", "Scheduled Class");
+                    row.put("hours", dailyHours);
+                    accumulatedHours += dailyHours;
+                    totalWorkingDays++;
+                }
+                
+                row.put("accumulatedHours", accumulatedHours);
+                tabularData.add(row);
+                
+                if (durationHoursLimit > 0 && accumulatedHours >= durationHoursLimit) {
+                    break;
+                }
+            }
+            current = current.plusDays(1);
+        }
+        
+        Map<String, Object> response = new java.util.LinkedHashMap<>();
+        response.put("courseTitle", course.getTitle());
+        response.put("batchName", batch.getName());
+        response.put("startDate", batch.getStartDate().toString());
+        response.put("endDate", batch.getEndDate().toString());
+        response.put("durationHoursLimit", durationHoursLimit);
+        response.put("totalWorkingDays", totalWorkingDays);
+        response.put("totalLeaveDays", totalLeaveDays);
+        response.put("totalCalculatedHours", accumulatedHours);
+        response.put("schedule", tabularData);
+        
+        return ResponseEntity.ok(ApiResponse.ok(response));
+    }
+
+    // ── Manual missing attendance trigger check for testing ──
+    @PostMapping("/attendance/check-missing")
+    public ResponseEntity<ApiResponse<String>> manuallyCheckMissingAttendance(
+            @RequestParam(required = false) String date) {
+        LocalDate targetDate = date != null ? LocalDate.parse(date) : LocalDate.now();
+        attendanceNotificationScheduler.performCheck(targetDate);
+        return ResponseEntity.ok(ApiResponse.ok("Alert check finished for date: " + targetDate));
     }
 }

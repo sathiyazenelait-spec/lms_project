@@ -55,13 +55,18 @@ public class DepartmentService {
 	// ── Create ────────────────────────────────────────────────────────────
 	@CacheEvict(value = "activeDepartments", allEntries = true)
 	public Department create(DepartmentRequest req,Admin admin) {
-		if (departmentRepository.existsByNameIgnoreCase(req.getName())) {
-			throw new BadRequestException("Department already exists: " + req.getName());
+		Long orgId = admin.getOrganizationId();
+		List<Department> existingDepts = departmentRepository.findByOrganizationId(orgId);
+		String cleanNewName = req.getName().replaceAll("\\s+", "").toLowerCase();
+		for (Department d : existingDepts) {
+			if (d.getName().replaceAll("\\s+", "").toLowerCase().equals(cleanNewName)) {
+				throw new BadRequestException("A department with this name already exists in your organization: " + req.getName());
+			}
 		}
+		
 		// NOTE: explicitly set active=true — do NOT rely on @Builder.Default
 		// because Lombok's @Builder.Default is ignored when fields are set via builder
 		boolean isActive = req.getActive() != null ? req.getActive() : true;
-		Long orgId=admin.getOrganizationId();
 		Department dept = Department.builder().name(req.getName().trim()).description(req.getDescription())
 				.active(isActive).build();
 		// Force active=true via setter as a safety net
@@ -77,10 +82,15 @@ public class DepartmentService {
 		Department dept = departmentRepository.findById(id)
 				.orElseThrow(() -> new ResourceNotFoundException("Department not found: " + id));
 
-		// Check name uniqueness only if name is changing
-		if (!dept.getName().equalsIgnoreCase(req.getName())
-				&& departmentRepository.existsByNameIgnoreCase(req.getName())) {
-			throw new BadRequestException("Department name already in use: " + req.getName());
+		Long orgId = dept.getOrganizationId();
+		String cleanNewName = req.getName().replaceAll("\\s+", "").toLowerCase();
+		if (!dept.getName().equalsIgnoreCase(req.getName())) {
+			List<Department> existingDepts = departmentRepository.findByOrganizationId(orgId);
+			for (Department d : existingDepts) {
+				if (!d.getId().equals(id) && d.getName().replaceAll("\\s+", "").toLowerCase().equals(cleanNewName)) {
+					throw new BadRequestException("A department with this name already exists in your organization: " + req.getName());
+				}
+			}
 		}
 
 		if (req.getName() != null)

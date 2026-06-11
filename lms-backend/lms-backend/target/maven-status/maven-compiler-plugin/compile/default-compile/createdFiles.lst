@@ -64,6 +64,7 @@ com\zenelait\lms\entity\OrganizationSubscription.class
 com\zenelait\lms\entity\Attendance.class
 com\zenelait\lms\controller\FileUploadController.class
 com\zenelait\lms\repository\TimetableSlotRepository.class
+com\zenelait\lms\repository\LiveClassAttendanceRepository.class
 com\zenelait\lms\repository\TeacherReviewRepository.class
 com\zenelait\lms\entity\Role.class
 com\zenelait\lms\entity\RazorpayOrder.class
@@ -83,6 +84,7 @@ com\zenelait\lms\HashPassword.class
 com\zenelait\lms\dto\request\AttendanceDTO.class
 com\zenelait\lms\entity\AdminCertificate$AdminCertificateBuilder.class
 com\zenelait\lms\entity\Attendance$AttendanceStatus.class
+com\zenelait\lms\service\notification\AttendanceNotificationScheduler.class
 com\zenelait\lms\entity\ForumPost$PostType.class
 com\zenelait\lms\entity\Assignment$AssignmentBuilder.class
 com\zenelait\lms\repository\CertificateRepository.class
@@ -93,13 +95,16 @@ com\zenelait\lms\exception\BadRequestException.class
 com\zenelait\lms\entity\ContactMsg.class
 com\zenelait\lms\controller\AdminController.class
 com\zenelait\lms\entity\Assessment.class
+com\zenelait\lms\entity\LeaveDay$LeaveDayBuilder.class
 com\zenelait\lms\entity\ContactMsg$ContactMsgBuilder.class
 com\zenelait\lms\repository\ForumPostRepository.class
 com\zenelait\lms\scheduler\BatchStatusScheduler.class
+com\zenelait\lms\entity\LiveClassAttendance$LiveClassAttendanceBuilder.class
 com\zenelait\lms\controller\PaymentController.class
 com\zenelait\lms\exception\ResourceNotFoundException.class
 com\zenelait\lms\entity\OtpVerification$OtpVerificationBuilder.class
 com\zenelait\lms\dto\request\AdminRegisterParentRequest.class
+com\zenelait\lms\entity\LiveClassAttendance.class
 com\zenelait\lms\repository\AdminCertificateRepository.class
 com\zenelait\lms\entity\Course$CourseStatus.class
 com\zenelait\lms\security\JwtAuthFilter.class
@@ -123,6 +128,7 @@ com\zenelait\lms\entity\CourseMaterial.class
 com\zenelait\lms\repository\CourseEnrollmentRequestRepository.class
 com\zenelait\lms\repository\StudentRepository.class
 com\zenelait\lms\entity\ExamResult.class
+com\zenelait\lms\entity\LeaveDay.class
 com\zenelait\lms\entity\Fee$FeeStatus.class
 com\zenelait\lms\repository\FeatureRepository.class
 com\zenelait\lms\repository\FeeRepository.class
@@ -142,6 +148,7 @@ com\zenelait\lms\dto\request\LoginRequest.class
 com\zenelait\lms\entity\ParentWallet.class
 com\zenelait\lms\repository\TeacherRepository.class
 com\zenelait\lms\entity\TimetableSlot.class
+com\zenelait\lms\repository\LeaveDayRepository.class
 com\zenelait\lms\dto\request\SuperAdminCreateRequest.class
 com\zenelait\lms\service\ultrasuperadmin\UltraSuperAdminService.class
 com\zenelait\lms\controller\StudentController.class

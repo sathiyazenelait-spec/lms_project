@@ -63,6 +63,7 @@ public class UltraSuperAdminController {
     private final UltraSuperAdminAuthService usaAuthService;
     private final SubscriptionService       subscriptionService;
     private final com.zenelait.lms.repository.NotificationRepository notificationRepository;
+    private final com.zenelait.lms.repository.ContactMessageRepository contactMessageRepository;
 
     // ── Profile ───────────────────────────────────────────────────────────────
     @GetMapping("/profile")
@@ -299,5 +300,42 @@ public class UltraSuperAdminController {
     public ResponseEntity<ApiResponse<Void>> sendRenewalReminder(@PathVariable Long id) {
         subscriptionService.sendManualReminder(id);
         return ResponseEntity.ok(ApiResponse.ok("Renewal reminder email sent successfully.", null));
+    }
+
+    // ── Ultra Super Admin Contact Queries ─────────────────────────────────────
+    @GetMapping("/contact-messages")
+    public ResponseEntity<ApiResponse<List<com.zenelait.lms.entity.ContactMsg>>> getContactMessages(
+            @RequestParam(required = false) com.zenelait.lms.entity.ContactMsg.MessageStatus status) {
+        List<com.zenelait.lms.entity.ContactMsg> msgs = status != null
+                ? contactMessageRepository.findByIsForUltraSuperAdminAndStatus(true, status)
+                : contactMessageRepository.findByIsForUltraSuperAdminOrderByReceivedAtDesc(true);
+        return ResponseEntity.ok(ApiResponse.ok("Ultra Super Admin contact messages", msgs));
+    }
+
+    @PatchMapping("/contact-messages/{id}/status")
+    public ResponseEntity<ApiResponse<com.zenelait.lms.entity.ContactMsg>> updateContactStatus(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body) {
+        com.zenelait.lms.entity.ContactMsg msg = contactMessageRepository.findById(id)
+                .orElseThrow(() -> new com.zenelait.lms.exception.ResourceNotFoundException("Message not found"));
+        if (!msg.isForUltraSuperAdmin()) {
+            throw new com.zenelait.lms.exception.BadRequestException("Not authorized for this message");
+        }
+        try {
+            msg.setStatus(com.zenelait.lms.entity.ContactMsg.MessageStatus.valueOf(body.get("status")));
+        } catch (Exception ignored) {}
+        contactMessageRepository.save(msg);
+        return ResponseEntity.ok(ApiResponse.ok("Status updated successfully", msg));
+    }
+
+    @DeleteMapping("/contact-messages/{id}")
+    public ResponseEntity<ApiResponse<Void>> deleteContactMessage(@PathVariable Long id) {
+        com.zenelait.lms.entity.ContactMsg msg = contactMessageRepository.findById(id)
+                .orElseThrow(() -> new com.zenelait.lms.exception.ResourceNotFoundException("Message not found"));
+        if (!msg.isForUltraSuperAdmin()) {
+            throw new com.zenelait.lms.exception.BadRequestException("Not authorized for this message");
+        }
+        contactMessageRepository.deleteById(id);
+        return ResponseEntity.ok(ApiResponse.ok("Message deleted successfully", null));
     }
 }

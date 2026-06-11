@@ -53,6 +53,13 @@ public class CourseMaterial {
     // For MEET_LINK: scheduled date/time
     private LocalDateTime scheduledAt;
 
+    // Live Class Configurations
+    private String joinType;        // EXTERNAL | EMBEDDED
+    private String platformType;    // ZOOM | MEET | TEAMS | OTHER
+    @Builder.Default
+    private boolean meetingStarted = false;
+    private LocalDateTime meetingStartedAt;
+
     @Column(nullable = false)
     @Builder.Default
     private boolean visible = true;    // teacher can hide/show

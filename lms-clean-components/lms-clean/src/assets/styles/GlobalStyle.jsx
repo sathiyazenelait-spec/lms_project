@@ -3,6 +3,49 @@ import { T } from "./theme";
 const GlobalStyle = () => (
   <style>{`
     @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800;900&family=DM+Sans:wght@300;400;500;600;700&display=swap');
+    
+    :root {
+      --bg: #06040F;
+      --bg2: #0E0A1E;
+      --bg3: #15102A;
+      --card: #1A1435;
+      --card2: #201848;
+      --border: #2D2160;
+      --primary: #7C3AED;
+      --primaryL: #A855F7;
+      --primaryD: #5B21B6;
+      --accent: #06B6D4;
+      --accentG: #10B981;
+      --accentR: #EF4444;
+      --accentY: #F59E0B;
+      --text: #EDE9FE;
+      --muted: #7C6FAA;
+      --white: #FFFFFF;
+      --header-bg: rgba(6, 4, 15, 0.9);
+      --dropdown-bg: rgba(10, 10, 20, 0.98);
+    }
+
+    :root[data-theme="bright"] {
+      --bg: #FAFAFA;
+      --bg2: #F4F4F7;
+      --bg3: #E4E4EB;
+      --card: #FFFFFF;
+      --card2: #EFEFF4;
+      --border: #DCDCE6;
+      --primary: #7C3AED;
+      --primaryL: #A855F7;
+      --primaryD: #5B21B6;
+      --accent: #0891B2;
+      --accentG: #059669;
+      --accentR: #DC2626;
+      --accentY: #D97706;
+      --text: #0E0B1A;
+      --muted: #6B5E99;
+      --white: #FFFFFF;
+      --header-bg: rgba(255, 255, 255, 0.9);
+      --dropdown-bg: rgba(244, 244, 247, 0.98);
+    }
+
     *{margin:0;padding:0;box-sizing:border-box;}
     body{font-family:'DM Sans',sans-serif;background:${T.bg};color:${T.text};min-height:100vh;overflow-x:hidden;}
     ::-webkit-scrollbar{width:5px;height:5px;}

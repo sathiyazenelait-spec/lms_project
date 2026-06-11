@@ -41,6 +41,10 @@ public class ContactMsg {
     @Column(name = "organization_id")
     private Long organizationId;
 
+    @Column(name = "is_for_ultra_super_admin")
+    @Builder.Default
+    private boolean isForUltraSuperAdmin = false;
+
     private LocalDateTime receivedAt;
 
     @PrePersist

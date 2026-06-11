@@ -11,7 +11,8 @@ import {
   usaGetPackages, usaCreatePackage, usaTogglePackageActive,
   usaDeletePackage, usaGetSubscriptions, usaAssignSubscription,
   usaGetRevenueAnalysis, usaGetNotifications, usaMarkNotifRead,
-  usaMarkAllNotifsRead, usaTriggerExpiryCheck, usaSendRenewalReminder
+  usaMarkAllNotifsRead, usaTriggerExpiryCheck, usaSendRenewalReminder,
+  usaGetContactMessages, usaUpdateContactStatus, usaDeleteContactMessage
 } from "../../api/auth";
 
 const C = { gold:"#F59E0B", red:"#EF4444", green:"#10B981", blue:"#06B6D4", purple:"#7C3AED" };
@@ -35,6 +36,70 @@ const injectStyles = () => {
     .usa-input::placeholder{color:rgba(255,255,255,.2)}
     .usa-submit{width:100%;border:none;padding:13px;border-radius:10px;font-weight:800;font-size:14px;cursor:pointer;font-family:'DM Sans',sans-serif;background:linear-gradient(135deg,#F59E0B,#EF4444);color:#000;transition:opacity .2s}
     .usa-submit:disabled{opacity:.5;cursor:not-allowed}
+    @media (max-width: 768px) {
+      .usa-wrapper {
+        flex-direction: column !important;
+      }
+      .usa-sidebar {
+        width: 100% !important;
+        height: auto !important;
+        position: relative !important;
+        border-right: none !important;
+        border-bottom: 1px solid rgba(255,255,255,0.05) !important;
+      }
+      .usa-sidebar nav {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 6px !important;
+        padding: 8px !important;
+      }
+      .usa-sidebar button.usa-nav {
+        width: auto !important;
+        flex: 1 1 120px !important;
+        margin-bottom: 0 !important;
+      }
+      .usa-stats-grid {
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 10px !important;
+      }
+      .usa-header {
+        flex-direction: column-reverse !important;
+        align-items: flex-start !important;
+        gap: 16px !important;
+      }
+      .usa-section-header {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 10px !important;
+      }
+      .usa-section-header button {
+        width: 100% !important;
+        text-align: center !important;
+      }
+      .usa-2col-grid {
+        grid-template-columns: 1fr !important;
+      }
+      .usa-revenue-stats {
+        grid-template-columns: repeat(2, 1fr) !important;
+      }
+      .usa-org-header {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 8px !important;
+      }
+    }
+    @media (max-width: 480px) {
+      .usa-stats-grid {
+        grid-template-columns: 1fr !important;
+      }
+      .usa-quick-actions button {
+        width: 100% !important;
+      }
+      .usa-revenue-stats {
+        grid-template-columns: 1fr !important;
+      }
+    }
   `;
   document.head.appendChild(s);
 };
@@ -159,6 +224,23 @@ export default function UltraSuperAdminDashboard({ auth, onLogout }) {
   const [triggeringCheck, setTriggeringCheck] = useState(false);
   const [remindingSubId, setRemindingSubId] = useState(null);
 
+  // USA Contact Queries State
+  const [queries, setQueries] = useState([]);
+  const [queriesLoading, setQueriesLoading] = useState(false);
+  const [queriesFilter, setQueriesFilter] = useState("");
+
+  const loadContactQueries = useCallback(async (filterStatus = queriesFilter) => {
+    setQueriesLoading(true);
+    try {
+      const data = await usaGetContactMessages(filterStatus || undefined);
+      setQueries(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Failed to load contact queries", err);
+    } finally {
+      setQueriesLoading(false);
+    }
+  }, [queriesFilter]);
+
   const loadPackages = useCallback(async () => {
     try {
       const data = await usaGetPackages();
@@ -271,8 +353,12 @@ export default function UltraSuperAdminDashboard({ auth, onLogout }) {
 
   useEffect(() => {
     loadStats(); loadOrgs(); loadAdmins(); loadFeatures(); loadPackages(); loadSubscriptions();
-    loadNotifications(); loadRevenueAnalysis();
+    loadNotifications(); loadRevenueAnalysis(); loadContactQueries();
   }, []);
+
+  useEffect(() => {
+    loadContactQueries();
+  }, [queriesFilter, loadContactQueries]);
 
   useEffect(() => {
     if (subscriptions.length > 0 && orgs.length > 0) {
@@ -469,6 +555,7 @@ export default function UltraSuperAdminDashboard({ auth, onLogout }) {
     { key:"packages",    icon:"💎", label:"Subscriptions"  },
     { key:"revenue",     icon:"💵", label:"Revenue Analysis" },
     { key:"renewals",    icon:"🔔", label:"Renewal Alerts" },
+    { key:"queries",     icon:"💬", label:"Contact Queries" },
   ];
 
   const activeOrgs   = orgs.filter(o => o.active).length;
@@ -489,10 +576,10 @@ export default function UltraSuperAdminDashboard({ auth, onLogout }) {
   );
 
   return (
-    <div style={{ minHeight:"100vh", background:T.bg, display:"flex", fontFamily:"'DM Sans',sans-serif" }}>
+    <div className="usa-wrapper" style={{ minHeight:"100vh", background:T.bg, display:"flex", fontFamily:"'DM Sans',sans-serif" }}>
 
       {/* ── Sidebar ── */}
-      <aside style={{ width:210, flexShrink:0, background:T.bg2, borderRight:`1px solid ${T.border}`, display:"flex", flexDirection:"column", position:"sticky", top:0, height:"100vh" }}>
+      <aside className="usa-sidebar" style={{ width:210, flexShrink:0, background:T.bg2, borderRight:`1px solid ${T.border}`, display:"flex", flexDirection:"column", position:"sticky", top:0, height:"100vh" }}>
         <div style={{ padding:"18px 16px", borderBottom:`1px solid ${T.border}` }}>
           <div style={{ display:"flex", alignItems:"center", gap:9 }}>
             <div style={{ width:32, height:32, borderRadius:8, background:"linear-gradient(135deg,#F59E0B,#EF4444)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:15 }}>🌐</div>
@@ -536,7 +623,7 @@ export default function UltraSuperAdminDashboard({ auth, onLogout }) {
       <main style={{ flex:1, padding:"26px 26px", overflowY:"auto", position: "relative" }}>
 
         {/* ── Header ── */}
-        <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, borderBottom: `1px solid ${T.border}`, paddingBottom: 14 }}>
+        <header className="usa-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, borderBottom: `1px solid ${T.border}`, paddingBottom: 14 }}>
           <div>
             <h1 style={{ fontFamily: "Syne", fontSize: 22, fontWeight: 900, color: "#fff", margin: 0 }}>
               {NAV.find(n => n.key === tab)?.label || "Dashboard"}
@@ -587,7 +674,7 @@ export default function UltraSuperAdminDashboard({ auth, onLogout }) {
               <h2 style={{ fontFamily:"Syne", fontSize:21, fontWeight:900, color:"#fff", margin:"0 0 4px" }}>Platform Overview</h2>
               <p style={{ color:T.muted, fontSize:13, margin:0 }}>Welcome back, <span style={{ color:C.gold }}>{auth?.name}</span></p>
             </div>
-            <div style={{ display:"flex", gap:12, flexWrap:"wrap", marginBottom:26 }}>
+            <div className="usa-stats-grid" style={{ display:"flex", gap:12, flexWrap:"wrap", marginBottom:26 }}>
               <StatCard icon="🏢" label="Total Orgs"     value={stats?.totalOrganizations}  color={C.gold}   />
               <StatCard icon="✅" label="Active Orgs"    value={stats?.activeOrganizations} color={C.green}  />
               <StatCard icon="👑" label="Super Admins"   value={stats?.totalSuperAdmins}    color={C.blue}   />
@@ -598,7 +685,7 @@ export default function UltraSuperAdminDashboard({ auth, onLogout }) {
             </div>
             <div style={{ marginBottom:18 }}>
               <h3 style={{ fontFamily:"Syne", fontSize:14, fontWeight:800, color:"#fff", marginBottom:12 }}>Quick Actions</h3>
-              <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+              <div className="usa-quick-actions" style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
                 <button onClick={() => { setTab("orgs"); setShowOrgModal(true); }} style={{ background:`linear-gradient(135deg,${C.gold},${C.red})`, border:"none", color:"#000", padding:"10px 18px", borderRadius:9, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>🏢 Create Organization</button>
                 <button onClick={() => { setTab("superadmins"); setShowAdmModal(true); }} style={{ background:`rgba(245,158,11,.1)`, border:`1.5px solid rgba(245,158,11,.28)`, color:C.gold, padding:"10px 18px", borderRadius:9, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>👑 Create Super Admin</button>
                 <button onClick={() => setTab("users")} style={{ background:"rgba(6,182,212,.1)", border:"1.5px solid rgba(6,182,212,.28)", color:C.blue, padding:"10px 18px", borderRadius:9, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>👥 View Users by Org</button>
@@ -637,38 +724,42 @@ export default function UltraSuperAdminDashboard({ auth, onLogout }) {
               <button onClick={() => setShowOrgModal(true)} style={{ background:`linear-gradient(135deg,${C.gold},${C.red})`, border:"none", color:"#000", padding:"9px 16px", borderRadius:9, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>+ Create Organization</button>
             </div>
             <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:14, overflow:"hidden" }}>
-              {/* thead */}
-              <div style={{ display:"grid", gridTemplateColumns:"1.2fr 1fr 90px 100px 120px 90px 80px", padding:"10px 16px", borderBottom:`1px solid ${T.border}`, fontSize:11, fontWeight:700, color:T.muted, textTransform:"uppercase", letterSpacing:.5 }}>
-                <span>Organization</span><span>Email</span><span>City</span><span>Code</span><span>Current Plan</span><span>Status</span><span>Action</span>
-              </div>
-              {orgs.length === 0
-                ? <div style={{ padding:32, textAlign:"center", color:T.muted, fontSize:13 }}>No organizations yet.</div>
-                : orgs.map((org,i) => {
-                  const activeSub = subscriptions.find(s => s.organizationId === org.id && s.status === "ACTIVE");
-                  return (
-                    <div key={org.id} className="usa-row" style={{ display:"grid", gridTemplateColumns:"1.2fr 1fr 90px 100px 120px 90px 80px", padding:"12px 16px", alignItems:"center", borderBottom: i<orgs.length-1 ? `1px solid ${T.border}` : "none" }}>
-                      <div>
-                        <div style={{ fontSize:13, fontWeight:600, color:"#fff" }}>{org.name}</div>
-                        <div style={{ fontSize:11, color:T.muted }}>{org.description?.slice(0,40)||"—"}</div>
-                      </div>
-                      <div style={{ fontSize:12, color:T.muted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{org.email}</div>
-                      <div style={{ fontSize:12, color:T.muted }}>{org.city||"—"}</div>
-                      <div><Chip color={C.gold}>{org.orgCode}</Chip></div>
-                      <div>
-                        {activeSub ? (
-                          <div style={{ fontSize:12, fontWeight:700, color:C.purple }}>
-                            {activeSub.subscriptionPackage?.name}
+              <div style={{ overflowX: "auto" }}>
+                <div style={{ minWidth: 950 }}>
+                  {/* thead */}
+                  <div style={{ display:"grid", gridTemplateColumns:"1.2fr 1fr 90px 100px 120px 90px 80px", padding:"10px 16px", borderBottom:`1px solid ${T.border}`, fontSize:11, fontWeight:700, color:T.muted, textTransform:"uppercase", letterSpacing:.5 }}>
+                    <span>Organization</span><span>Email</span><span>City</span><span>Code</span><span>Current Plan</span><span>Status</span><span>Action</span>
+                  </div>
+                  {orgs.length === 0
+                    ? <div style={{ padding:32, textAlign:"center", color:T.muted, fontSize:13 }}>No organizations yet.</div>
+                    : orgs.map((org,i) => {
+                      const activeSub = subscriptions.find(s => s.organizationId === org.id && s.status === "ACTIVE");
+                      return (
+                        <div key={org.id} className="usa-row" style={{ display:"grid", gridTemplateColumns:"1.2fr 1fr 90px 100px 120px 90px 80px", padding:"12px 16px", alignItems:"center", borderBottom: i<orgs.length-1 ? `1px solid ${T.border}` : "none" }}>
+                          <div>
+                            <div style={{ fontSize:13, fontWeight:600, color:"#fff" }}>{org.name}</div>
+                            <div style={{ fontSize:11, color:T.muted }}>{org.description?.slice(0,40)||"—"}</div>
                           </div>
-                        ) : (
-                          <span style={{ fontSize:12, color:T.muted }}>None</span>
-                        )}
-                      </div>
-                      <div><Chip color={org.active ? C.green : C.red}>{org.active?"Active":"Inactive"}</Chip></div>
-                      <button onClick={() => handleToggleOrg(org.id)} style={{ background: org.active ? "rgba(239,68,68,.1)" : "rgba(16,185,129,.1)", border:`1px solid ${org.active ? "rgba(239,68,68,.3)" : "rgba(16,185,129,.3)"}`, color: org.active ? C.red : C.green, padding:"4px 9px", borderRadius:6, fontSize:11, cursor:"pointer", fontWeight:600, fontFamily:"'DM Sans',sans-serif" }}>{org.active?"Disable":"Enable"}</button>
-                    </div>
-                  );
-                })
-              }
+                          <div style={{ fontSize:12, color:T.muted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{org.email}</div>
+                          <div style={{ fontSize:12, color:T.muted }}>{org.city||"—"}</div>
+                          <div><Chip color={C.gold}>{org.orgCode}</Chip></div>
+                          <div>
+                            {activeSub ? (
+                              <div style={{ fontSize:12, fontWeight:700, color:C.purple }}>
+                                {activeSub.subscriptionPackage?.name}
+                              </div>
+                            ) : (
+                              <span style={{ fontSize:12, color:T.muted }}>None</span>
+                            )}
+                          </div>
+                          <div><Chip color={org.active ? C.green : C.red}>{org.active?"Active":"Inactive"}</Chip></div>
+                          <button onClick={() => handleToggleOrg(org.id)} style={{ background: org.active ? "rgba(239,68,68,.1)" : "rgba(16,185,129,.1)", border:`1px solid ${org.active ? "rgba(239,68,68,.3)" : "rgba(16,185,129,.3)"}`, color: org.active ? C.red : C.green, padding:"4px 9px", borderRadius:6, fontSize:11, cursor:"pointer", fontWeight:600, fontFamily:"'DM Sans',sans-serif" }}>{org.active?"Disable":"Enable"}</button>
+                        </div>
+                      );
+                    })
+                  }
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -676,7 +767,7 @@ export default function UltraSuperAdminDashboard({ auth, onLogout }) {
         {/* ════ SUPER ADMINS ════ */}
         {tab === "superadmins" && (
           <div style={{ animation:"usaFadeUp .35s ease" }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+            <div className="usa-section-header" style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
               <div>
                 <h2 style={{ fontFamily:"Syne", fontSize:21, fontWeight:900, color:"#fff", margin:"0 0 4px" }}>Super Admins</h2>
                 <p style={{ color:T.muted, fontSize:13, margin:0 }}>{admins.length} super admins platform-wide</p>
@@ -684,24 +775,28 @@ export default function UltraSuperAdminDashboard({ auth, onLogout }) {
               <button onClick={() => setShowAdmModal(true)} style={{ background:`linear-gradient(135deg,${C.gold},${C.red})`, border:"none", color:"#000", padding:"9px 16px", borderRadius:9, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>+ Create Super Admin</button>
             </div>
             <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:14, overflow:"hidden" }}>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 120px 120px 80px", padding:"10px 16px", borderBottom:`1px solid ${T.border}`, fontSize:11, fontWeight:700, color:T.muted, textTransform:"uppercase", letterSpacing:.5 }}>
-                <span>Name</span><span>Email</span><span>User Code</span><span>Organization</span><span>Status</span>
-              </div>
-              {admins.length === 0
-                ? <div style={{ padding:32, textAlign:"center", color:T.muted, fontSize:13 }}>No super admins yet.</div>
-                : admins.map((a,i) => (
-                  <div key={a.id} className="usa-row" style={{ display:"grid", gridTemplateColumns:"1fr 1fr 120px 120px 80px", padding:"12px 16px", alignItems:"center", borderBottom: i<admins.length-1 ? `1px solid ${T.border}` : "none" }}>
-                    <div>
-                      <div style={{ fontSize:13, fontWeight:600, color:"#fff" }}>{a.name}</div>
-                      <div style={{ fontSize:11, color:T.muted }}>{a.academyName||"—"}</div>
-                    </div>
-                    <div style={{ fontSize:12, color:T.muted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{a.email}</div>
-                    <div><Chip color={C.gold}>{a.userId}</Chip></div>
-                    <div style={{ fontSize:12, color:T.muted }}>{orgs.find(o=>o.id===a.organizationId)?.name||`Org #${a.organizationId}`}</div>
-                    <div><Chip color={a.active ? C.green : C.red}>{a.active?"Active":"Off"}</Chip></div>
+              <div style={{ overflowX:"auto" }}>
+                <div style={{ minWidth:680 }}>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 120px 120px 80px", padding:"10px 16px", borderBottom:`1px solid ${T.border}`, fontSize:11, fontWeight:700, color:T.muted, textTransform:"uppercase", letterSpacing:.5 }}>
+                    <span>Name</span><span>Email</span><span>User Code</span><span>Organization</span><span>Status</span>
                   </div>
-                ))
-              }
+                  {admins.length === 0
+                    ? <div style={{ padding:32, textAlign:"center", color:T.muted, fontSize:13 }}>No super admins yet.</div>
+                    : admins.map((a,i) => (
+                      <div key={a.id} className="usa-row" style={{ display:"grid", gridTemplateColumns:"1fr 1fr 120px 120px 80px", padding:"12px 16px", alignItems:"center", borderBottom: i<admins.length-1 ? `1px solid ${T.border}` : "none" }}>
+                        <div>
+                          <div style={{ fontSize:13, fontWeight:600, color:"#fff" }}>{a.name}</div>
+                          <div style={{ fontSize:11, color:T.muted }}>{a.academyName||"—"}</div>
+                        </div>
+                        <div style={{ fontSize:12, color:T.muted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{a.email}</div>
+                        <div><Chip color={C.gold}>{a.userId}</Chip></div>
+                        <div style={{ fontSize:12, color:T.muted }}>{orgs.find(o=>o.id===a.organizationId)?.name||`Org #${a.organizationId}`}</div>
+                        <div><Chip color={a.active ? C.green : C.red}>{a.active?"Active":"Off"}</Chip></div>
+                      </div>
+                    ))
+                  }
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -728,7 +823,7 @@ export default function UltraSuperAdminDashboard({ auth, onLogout }) {
             {selectedOrg && (
               <>
                 {/* Org header */}
-                <div style={{ background:T.card, border:`1px solid rgba(245,158,11,.2)`, borderRadius:12, padding:"14px 18px", marginBottom:16, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                <div className="usa-org-header" style={{ background:T.card, border:`1px solid rgba(245,158,11,.2)`, borderRadius:12, padding:"14px 18px", marginBottom:16, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                   <div>
                     <div style={{ fontFamily:"Syne", fontWeight:800, fontSize:15, color:"#fff" }}>{selectedOrg.name}</div>
                     <div style={{ fontSize:12, color:T.muted, marginTop:2 }}>{selectedOrg.orgCode} · {selectedOrg.email}</div>
@@ -741,7 +836,7 @@ export default function UltraSuperAdminDashboard({ auth, onLogout }) {
                 </div>
 
                 {/* Sub-tabs */}
-                <div style={{ display:"flex", gap:8, marginBottom:16 }}>
+                <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
                   {[["students","👨‍🎓","Students",students.length,C.blue],["teachers","👨‍🏫","Teachers",teachers.length,C.green],["parents","👨‍👩‍👦","Parents",parents.length,C.red]].map(([k,ic,lb,cnt,col]) => (
                     <button key={k} onClick={() => setUserTab(k)}
                       style={{ padding:"7px 16px", borderRadius:9, cursor:"pointer", fontSize:12, fontWeight:600, fontFamily:"'DM Sans',sans-serif", border:`1.5px solid ${userTab===k ? col : T.border}`, background: userTab===k ? `${col}18` : "transparent", color: userTab===k ? col : T.muted }}>
@@ -754,37 +849,41 @@ export default function UltraSuperAdminDashboard({ auth, onLogout }) {
                   {usersLoading
                     ? <div style={{ padding:32, textAlign:"center", color:T.muted, fontSize:13 }}><Spinner /> Loading…</div>
                     : <>
-                        {/* Column header */}
-                        <div style={{ display:"grid", gridTemplateColumns:"1fr 120px 1fr 110px 80px", padding:"10px 16px", borderBottom:`1px solid ${T.border}`, fontSize:11, fontWeight:700, color:T.muted, textTransform:"uppercase", letterSpacing:.5 }}>
-                          <span>Name</span><span>ID</span><span>Email</span><span>Phone</span><span>Status</span>
+                        <div style={{ overflowX:"auto" }}>
+                          <div style={{ minWidth:600 }}>
+                            {/* Column header */}
+                            <div style={{ display:"grid", gridTemplateColumns:"1fr 120px 1fr 110px 80px", padding:"10px 16px", borderBottom:`1px solid ${T.border}`, fontSize:11, fontWeight:700, color:T.muted, textTransform:"uppercase", letterSpacing:.5 }}>
+                              <span>Name</span><span>ID</span><span>Email</span><span>Phone</span><span>Status</span>
+                            </div>
+                            {userTab === "students" && (
+                              <>
+                                {paginate(students, stuPage).length === 0
+                                  ? <div style={{ padding:32, textAlign:"center", color:T.muted, fontSize:13 }}>No students in this organization.</div>
+                                  : paginate(students, stuPage).map((u,i) => userRow(u, i, C.blue))
+                                }
+                                <Pagination page={stuPage} total={students.length} pageSize={PAGE_SIZE} onChange={setStuPage} />
+                              </>
+                            )}
+                            {userTab === "teachers" && (
+                              <>
+                                {paginate(teachers, tchPage).length === 0
+                                  ? <div style={{ padding:32, textAlign:"center", color:T.muted, fontSize:13 }}>No teachers in this organization.</div>
+                                  : paginate(teachers, tchPage).map((u,i) => userRow(u, i, C.green))
+                                }
+                                <Pagination page={tchPage} total={teachers.length} pageSize={PAGE_SIZE} onChange={setTchPage} />
+                              </>
+                            )}
+                            {userTab === "parents" && (
+                              <>
+                                {paginate(parents, parPage).length === 0
+                                  ? <div style={{ padding:32, textAlign:"center", color:T.muted, fontSize:13 }}>No parents in this organization.</div>
+                                  : paginate(parents, parPage).map((u,i) => userRow(u, i, C.red))
+                                }
+                                <Pagination page={parPage} total={parents.length} pageSize={PAGE_SIZE} onChange={setParPage} />
+                              </>
+                            )}
+                          </div>
                         </div>
-                        {userTab === "students" && (
-                          <>
-                            {paginate(students, stuPage).length === 0
-                              ? <div style={{ padding:32, textAlign:"center", color:T.muted, fontSize:13 }}>No students in this organization.</div>
-                              : paginate(students, stuPage).map((u,i) => userRow(u, i, C.blue))
-                            }
-                            <Pagination page={stuPage} total={students.length} pageSize={PAGE_SIZE} onChange={setStuPage} />
-                          </>
-                        )}
-                        {userTab === "teachers" && (
-                          <>
-                            {paginate(teachers, tchPage).length === 0
-                              ? <div style={{ padding:32, textAlign:"center", color:T.muted, fontSize:13 }}>No teachers in this organization.</div>
-                              : paginate(teachers, tchPage).map((u,i) => userRow(u, i, C.green))
-                            }
-                            <Pagination page={tchPage} total={teachers.length} pageSize={PAGE_SIZE} onChange={setTchPage} />
-                          </>
-                        )}
-                        {userTab === "parents" && (
-                          <>
-                            {paginate(parents, parPage).length === 0
-                              ? <div style={{ padding:32, textAlign:"center", color:T.muted, fontSize:13 }}>No parents in this organization.</div>
-                              : paginate(parents, parPage).map((u,i) => userRow(u, i, C.red))
-                            }
-                            <Pagination page={parPage} total={parents.length} pageSize={PAGE_SIZE} onChange={setParPage} />
-                          </>
-                        )}
                       </>
                   }
                 </div>
@@ -804,7 +903,7 @@ export default function UltraSuperAdminDashboard({ auth, onLogout }) {
         {/* ════ FEATURE TOGGLES ════ */}
         {tab === "features" && (
           <div style={{ animation:"usaFadeUp .35s ease" }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+            <div className="usa-section-header" style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
               <div>
                 <h2 style={{ fontFamily:"Syne", fontSize:21, fontWeight:900, color:"#fff", margin:"0 0 4px" }}>Feature Management</h2>
                 <p style={{ color:T.muted, fontSize:13, margin:0 }}>{features.length} system features defined</p>
@@ -812,7 +911,7 @@ export default function UltraSuperAdminDashboard({ auth, onLogout }) {
               <button onClick={() => setShowFeatModal(true)} style={{ background:`linear-gradient(135deg,${C.gold},${C.red})`, border:"none", color:"#000", padding:"9px 16px", borderRadius:9, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>+ Create Feature</button>
             </div>
 
-            <div style={{ display:"grid", gridTemplateColumns:"1.2fr 1fr", gap:20, alignItems:"start" }}>
+            <div className="usa-2col-grid" style={{ display:"grid", gridTemplateColumns:"1.2fr 1fr", gap:20, alignItems:"start" }}>
               {/* Global Features Table */}
               <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:14, overflow:"hidden" }}>
                 <div style={{ padding:"13px 18px", borderBottom:`1px solid ${T.border}`, fontFamily:"Syne", fontSize:14, fontWeight:700, color:"#fff" }}>Global System Features</div>
@@ -905,7 +1004,7 @@ export default function UltraSuperAdminDashboard({ auth, onLogout }) {
         {tab === "packages" && (
           <div style={{ animation:"usaFadeUp .35s ease" }}>
             {/* Packages Section */}
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+            <div className="usa-section-header" style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
               <div>
                 <h2 style={{ fontFamily:"Syne", fontSize:21, fontWeight:900, color:"#fff", margin:"0 0 4px" }}>Subscription Packages</h2>
                 <p style={{ color:T.muted, fontSize:13, margin:0 }}>{packages.length} packages created</p>
@@ -914,36 +1013,40 @@ export default function UltraSuperAdminDashboard({ auth, onLogout }) {
             </div>
             
             <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:14, overflow:"hidden", marginBottom:30 }}>
-              <div style={{ display:"grid", gridTemplateColumns:"1.2fr 100px 100px 100px 80px 120px", padding:"10px 16px", borderBottom:`1px solid ${T.border}`, fontSize:11, fontWeight:700, color:T.muted, textTransform:"uppercase", letterSpacing:.5 }}>
-                <span>Package</span><span>Price</span><span>Type</span><span>Duration</span><span>Status</span><span>Action</span>
+              <div style={{ overflowX:"auto" }}>
+                <div style={{ minWidth:700 }}>
+                  <div style={{ display:"grid", gridTemplateColumns:"1.2fr 100px 100px 100px 80px 120px", padding:"10px 16px", borderBottom:`1px solid ${T.border}`, fontSize:11, fontWeight:700, color:T.muted, textTransform:"uppercase", letterSpacing:.5 }}>
+                    <span>Package</span><span>Price</span><span>Type</span><span>Duration</span><span>Status</span><span>Action</span>
+                  </div>
+                  {packages.length === 0
+                    ? <div style={{ padding:32, textAlign:"center", color:T.muted, fontSize:13 }}>No packages created yet.</div>
+                    : packages.map((pkg, i) => (
+                        <div key={pkg.id} className="usa-row" style={{ display:"grid", gridTemplateColumns:"1.2fr 100px 100px 100px 80px 120px", padding:"12px 16px", alignItems:"center", borderBottom: i < packages.length - 1 ? `1px solid ${T.border}` : "none" }}>
+                          <div>
+                            <div style={{ fontSize:13, fontWeight:600, color:"#fff" }}>{pkg.name}</div>
+                            <div style={{ fontSize:11, color:T.muted }}>{pkg.description || "No description"}</div>
+                          </div>
+                          <div style={{ fontSize:13, fontWeight:700, color:C.gold }}>₹{pkg.price.toLocaleString("en-IN")}</div>
+                          <div><Chip color={C.blue}>{pkg.packageType}</Chip></div>
+                          <div style={{ fontSize:12, color:T.muted }}>{pkg.durationDays} Days</div>
+                          <div><Chip color={pkg.active ? C.green : C.red}>{pkg.active ? "Active" : "Disabled"}</Chip></div>
+                          <div style={{ display:"flex", gap:6 }}>
+                            <button onClick={() => handleTogglePackage(pkg.id)} style={{ background: pkg.active ? "rgba(239,68,68,.1)" : "rgba(16,185,129,.1)", border:`1px solid ${pkg.active ? "rgba(239,68,68,.3)" : "rgba(16,185,129,.3)"}`, color: pkg.active ? C.red : C.green, padding:"4px 9px", borderRadius:6, fontSize:11, cursor:"pointer", fontWeight:600, fontFamily:"'DM Sans',sans-serif" }}>
+                              {pkg.active ? "Disable" : "Enable"}
+                            </button>
+                            <button onClick={() => handleDeletePackage(pkg.id)} style={{ background:"rgba(239,68,68,.1)", border:"1px solid rgba(239,68,68,.3)", color:C.red, padding:"4px 9px", borderRadius:6, fontSize:11, cursor:"pointer", fontWeight:600, fontFamily:"'DM Sans',sans-serif" }}>
+                              🗑
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                  }
+                </div>
               </div>
-              {packages.length === 0
-                ? <div style={{ padding:32, textAlign:"center", color:T.muted, fontSize:13 }}>No packages created yet.</div>
-                : packages.map((pkg, i) => (
-                    <div key={pkg.id} className="usa-row" style={{ display:"grid", gridTemplateColumns:"1.2fr 100px 100px 100px 80px 120px", padding:"12px 16px", alignItems:"center", borderBottom: i < packages.length - 1 ? `1px solid ${T.border}` : "none" }}>
-                      <div>
-                        <div style={{ fontSize:13, fontWeight:600, color:"#fff" }}>{pkg.name}</div>
-                        <div style={{ fontSize:11, color:T.muted }}>{pkg.description || "No description"}</div>
-                      </div>
-                      <div style={{ fontSize:13, fontWeight:700, color:C.gold }}>₹{pkg.price.toLocaleString("en-IN")}</div>
-                      <div><Chip color={C.blue}>{pkg.packageType}</Chip></div>
-                      <div style={{ fontSize:12, color:T.muted }}>{pkg.durationDays} Days</div>
-                      <div><Chip color={pkg.active ? C.green : C.red}>{pkg.active ? "Active" : "Disabled"}</Chip></div>
-                      <div style={{ display:"flex", gap:6 }}>
-                        <button onClick={() => handleTogglePackage(pkg.id)} style={{ background: pkg.active ? "rgba(239,68,68,.1)" : "rgba(16,185,129,.1)", border:`1px solid ${pkg.active ? "rgba(239,68,68,.3)" : "rgba(16,185,129,.3)"}`, color: pkg.active ? C.red : C.green, padding:"4px 9px", borderRadius:6, fontSize:11, cursor:"pointer", fontWeight:600, fontFamily:"'DM Sans',sans-serif" }}>
-                          {pkg.active ? "Disable" : "Enable"}
-                        </button>
-                        <button onClick={() => handleDeletePackage(pkg.id)} style={{ background:"rgba(239,68,68,.1)", border:"1px solid rgba(239,68,68,.3)", color:C.red, padding:"4px 9px", borderRadius:6, fontSize:11, cursor:"pointer", fontWeight:600, fontFamily:"'DM Sans',sans-serif" }}>
-                          🗑
-                        </button>
-                      </div>
-                    </div>
-                  ))
-              }
             </div>
 
             {/* Subscriptions Section */}
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+            <div className="usa-section-header" style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
               <div>
                 <h2 style={{ fontFamily:"Syne", fontSize:21, fontWeight:900, color:"#fff", margin:"0 0 4px" }}>Organization Subscriptions</h2>
                 <p style={{ color:T.muted, fontSize:13, margin:0 }}>{subscriptions.length} subscription assignments</p>
@@ -952,37 +1055,41 @@ export default function UltraSuperAdminDashboard({ auth, onLogout }) {
             </div>
 
             <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:14, overflow:"hidden" }}>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 100px 180px 100px 100px", padding:"10px 16px", borderBottom:`1px solid ${T.border}`, fontSize:11, fontWeight:700, color:T.muted, textTransform:"uppercase", letterSpacing:.5 }}>
-                <span>Organization</span><span>Package</span><span>Type</span><span>Validity</span><span>Days Left</span><span>Status</span>
+              <div style={{ overflowX:"auto" }}>
+                <div style={{ minWidth:780 }}>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 100px 180px 100px 100px", padding:"10px 16px", borderBottom:`1px solid ${T.border}`, fontSize:11, fontWeight:700, color:T.muted, textTransform:"uppercase", letterSpacing:.5 }}>
+                    <span>Organization</span><span>Package</span><span>Type</span><span>Validity</span><span>Days Left</span><span>Status</span>
+                  </div>
+                  {subscriptions.length === 0
+                    ? <div style={{ padding:32, textAlign:"center", color:T.muted, fontSize:13 }}>No active subscription assignments found.</div>
+                    : subscriptions.map((sub, i) => {
+                        const org = orgs.find(o => o.id === sub.organizationId);
+                        const diff = new Date(sub.endDate) - new Date();
+                        const daysLeft = Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+                        return (
+                          <div key={sub.id} className="usa-row" style={{ display:"grid", gridTemplateColumns:"1fr 1fr 100px 180px 100px 100px", padding:"12px 16px", alignItems:"center", borderBottom: i < subscriptions.length - 1 ? `1px solid ${T.border}` : "none" }}>
+                            <div>
+                              <div style={{ fontSize:13, fontWeight:600, color:"#fff" }}>{org?.name || `Org #${sub.organizationId}`}</div>
+                              <div style={{ fontSize:11, color:T.muted }}>{org?.orgCode || "—"}</div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize:13, fontWeight:600, color:"#fff" }}>{sub.subscriptionPackage?.name}</div>
+                              <div style={{ fontSize:11, color:T.muted }}>₹{sub.subscriptionPackage?.price?.toLocaleString("en-IN")}</div>
+                            </div>
+                            <div><Chip color={C.blue}>{sub.subscriptionPackage?.packageType}</Chip></div>
+                            <div style={{ fontSize:12, color:T.muted }}>
+                              {new Date(sub.startDate).toLocaleDateString("en-IN")} - {new Date(sub.endDate).toLocaleDateString("en-IN")}
+                            </div>
+                            <div style={{ fontSize:13, fontWeight:700, color: sub.status === "ACTIVE" ? (daysLeft <= 3 ? C.red : daysLeft <= 10 ? C.gold : C.green) : T.muted }}>
+                              {sub.status === "ACTIVE" ? `${daysLeft} Days` : "—"}
+                            </div>
+                            <div><Chip color={sub.status === "ACTIVE" ? C.green : C.red}>{sub.status}</Chip></div>
+                          </div>
+                        );
+                      })
+                  }
+                </div>
               </div>
-              {subscriptions.length === 0
-                ? <div style={{ padding:32, textAlign:"center", color:T.muted, fontSize:13 }}>No active subscription assignments found.</div>
-                : subscriptions.map((sub, i) => {
-                    const org = orgs.find(o => o.id === sub.organizationId);
-                    const diff = new Date(sub.endDate) - new Date();
-                    const daysLeft = Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
-                    return (
-                      <div key={sub.id} className="usa-row" style={{ display:"grid", gridTemplateColumns:"1fr 1fr 100px 180px 100px 100px", padding:"12px 16px", alignItems:"center", borderBottom: i < subscriptions.length - 1 ? `1px solid ${T.border}` : "none" }}>
-                        <div>
-                          <div style={{ fontSize:13, fontWeight:600, color:"#fff" }}>{org?.name || `Org #${sub.organizationId}`}</div>
-                          <div style={{ fontSize:11, color:T.muted }}>{org?.orgCode || "—"}</div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize:13, fontWeight:600, color:"#fff" }}>{sub.subscriptionPackage?.name}</div>
-                          <div style={{ fontSize:11, color:T.muted }}>₹{sub.subscriptionPackage?.price?.toLocaleString("en-IN")}</div>
-                        </div>
-                        <div><Chip color={C.blue}>{sub.subscriptionPackage?.packageType}</Chip></div>
-                        <div style={{ fontSize:12, color:T.muted }}>
-                          {new Date(sub.startDate).toLocaleDateString("en-IN")} - {new Date(sub.endDate).toLocaleDateString("en-IN")}
-                        </div>
-                        <div style={{ fontSize:13, fontWeight:700, color: sub.status === "ACTIVE" ? (daysLeft <= 3 ? C.red : daysLeft <= 10 ? C.gold : C.green) : T.muted }}>
-                          {sub.status === "ACTIVE" ? `${daysLeft} Days` : "—"}
-                        </div>
-                        <div><Chip color={sub.status === "ACTIVE" ? C.green : C.red}>{sub.status}</Chip></div>
-                      </div>
-                    );
-                  })
-              }
             </div>
           </div>
         )}
@@ -994,14 +1101,14 @@ export default function UltraSuperAdminDashboard({ auth, onLogout }) {
               <div style={{ padding: 48, textAlign: "center", color: T.muted }}><Spinner /> Loading revenue metrics…</div>
             ) : (
               <div>
-                <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 26 }}>
+                <div className="usa-revenue-stats" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 26 }}>
                   <StatCard icon="💵" label="Total Revenue" value={`₹${(revenueData?.totalRevenue || 0).toLocaleString("en-IN")}`} color={C.green} />
                   <StatCard icon="📈" label="Monthly Recur. Revenue (MRR)" value={`₹${Math.round(revenueData?.mrr || 0).toLocaleString("en-IN")}`} color={C.blue} />
                   <StatCard icon="📊" label="Annual Recur. Revenue (ARR)" value={`₹${Math.round(revenueData?.arr || 0).toLocaleString("en-IN")}`} color={C.purple} />
                   <StatCard icon="🏢" label="Active Subscriptions" value={revenueData?.activeSubscriptionsCount || 0} color={C.gold} />
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 20, marginBottom: 26, alignItems: "stretch" }}>
+                <div className="usa-2col-grid" style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 20, marginBottom: 26, alignItems: "stretch" }}>
                   {/* Historical Growth Chart */}
                   <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 14, padding: 18, display: "flex", flexDirection: "column" }}>
                     <h3 style={{ fontFamily: "Syne", fontSize: 15, fontWeight: 800, color: "#fff", margin: "0 0 4px" }}>Historical Sales Growth</h3>
@@ -1096,7 +1203,7 @@ export default function UltraSuperAdminDashboard({ auth, onLogout }) {
         {/* ════ RENEWAL ALERTS & ACTIONS ════ */}
         {tab === "renewals" && (
           <div style={{ animation: "usaFadeUp .35s ease" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+            <div className="usa-section-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <div>
                 <h2 style={{ fontFamily: "Syne", fontSize: 21, fontWeight: 900, color: "#fff", margin: "0 0 4px" }}>Organization Renewal Center</h2>
                 <p style={{ color: T.muted, fontSize: 13, margin: 0 }}>Scan plan expirations, trigger automated system alerts, and send manual email reminders.</p>
@@ -1113,68 +1220,191 @@ export default function UltraSuperAdminDashboard({ auth, onLogout }) {
             </div>
 
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 180px 100px 100px 120px", padding: "10px 16px", borderBottom: `1px solid ${T.border}`, fontSize: 11, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: .5 }}>
-                <span>Organization</span><span>Package</span><span>Validity</span><span>Days Left</span><span>Status</span><span>Reminder</span>
+              <div style={{ overflowX: "auto" }}>
+                <div style={{ minWidth: 780 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 180px 100px 100px 120px", padding: "10px 16px", borderBottom: `1px solid ${T.border}`, fontSize: 11, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: .5 }}>
+                    <span>Organization</span><span>Package</span><span>Validity</span><span>Days Left</span><span>Status</span><span>Reminder</span>
+                  </div>
+                  
+                  {subscriptions.length === 0 ? (
+                    <div style={{ padding: 32, textAlign: "center", color: T.muted, fontSize: 13 }}>No subscriptions found.</div>
+                  ) : (
+                    [...subscriptions]
+                      .sort((a, b) => {
+                        if (a.status === "ACTIVE" && b.status !== "ACTIVE") return -1;
+                        if (a.status !== "ACTIVE" && b.status === "ACTIVE") return 1;
+                        return new Date(a.endDate) - new Date(b.endDate);
+                      })
+                      .map((sub, i) => {
+                        const org = orgs.find(o => o.id === sub.organizationId);
+                        const diff = new Date(sub.endDate) - new Date();
+                        const daysLeft = Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+                        const isUrgent = sub.status === "ACTIVE" && daysLeft <= 10;
+                        
+                        return (
+                          <div key={sub.id} className="usa-row" style={{
+                            display: "grid", gridTemplateColumns: "1.2fr 1fr 180px 100px 100px 120px",
+                            padding: "12px 16px", alignItems: "center", borderBottom: i < subscriptions.length - 1 ? `1px solid ${T.border}` : "none",
+                            background: isUrgent ? "rgba(239,68,68,0.02)" : "transparent"
+                          }}>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: "#fff" }}>{org?.name || `Org #${sub.organizationId}`}</div>
+                              <div style={{ fontSize: 11, color: T.muted }}>{org?.email || "—"}</div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: "#fff" }}>{sub.subscriptionPackage?.name}</div>
+                              <div style={{ fontSize: 11, color: T.muted }}>₹{sub.subscriptionPackage?.price?.toLocaleString("en-IN")}</div>
+                            </div>
+                            <div style={{ fontSize: 12, color: T.muted }}>
+                              {new Date(sub.startDate).toLocaleDateString("en-IN")} - {new Date(sub.endDate).toLocaleDateString("en-IN")}
+                            </div>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: sub.status === "ACTIVE" ? (daysLeft <= 3 ? C.red : daysLeft <= 10 ? C.gold : C.green) : T.muted }}>
+                              {sub.status === "ACTIVE" ? `${daysLeft} Days` : "Expired"}
+                            </div>
+                            <div>
+                              <Chip color={sub.status === "ACTIVE" ? C.green : C.red}>{sub.status}</Chip>
+                            </div>
+                            <div>
+                              {sub.status === "ACTIVE" && (
+                                <button
+                                  onClick={() => handleSendReminder(sub.id, org?.name || `Org #${sub.organizationId}`)}
+                                  disabled={remindingSubId === sub.id}
+                                  style={{
+                                    background: remindingSubId === sub.id ? "rgba(6,182,212,0.1)" : "rgba(245,158,11,0.1)",
+                                    border: `1px solid ${remindingSubId === sub.id ? "rgba(6,182,212,0.2)" : "rgba(245,158,11,0.2)"}`,
+                                    color: remindingSubId === sub.id ? C.blue : C.gold,
+                                    padding: "5px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: remindingSubId === sub.id ? "not-allowed" : "pointer",
+                                    width: "100%", textAlign: "center", fontFamily: "'DM Sans',sans-serif"
+                                  }}
+                                >
+                                  {remindingSubId === sub.id ? <Spinner /> : "✉️ Remind"}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                  )}
+                </div>
               </div>
-              
-              {subscriptions.length === 0 ? (
-                <div style={{ padding: 32, textAlign: "center", color: T.muted, fontSize: 13 }}>No subscriptions found.</div>
+            </div>
+          </div>
+        )}
+
+        {/* ════ CONTACT QUERIES ════ */}
+        {tab === "queries" && (
+          <div style={{ animation: "usaFadeUp .35s ease" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <div>
+                <h2 style={{ fontFamily: "Syne", fontSize: 21, fontWeight: 900, color: "#fff", margin: "0 0 4px" }}>Contact Queries</h2>
+                <p style={{ color: T.muted, fontSize: 13, margin: 0 }}>Direct inquiries sent from the website "Get in Touch" form</p>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                {["", "NEW", "PENDING", "RESOLVED"].map((status) => (
+                  <button
+                    key={status}
+                    onClick={() => setQueriesFilter(status)}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: 20,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      border: `1px solid ${queriesFilter === status ? C.gold : T.border}`,
+                      background: queriesFilter === status ? `${C.gold}18` : "transparent",
+                      color: queriesFilter === status ? C.gold : T.muted,
+                      transition: "all 0.2s"
+                    }}
+                  >
+                    {status === "" ? "All" : status}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden" }}>
+              {queriesLoading ? (
+                <div style={{ padding: 40, textAlign: "center", color: T.muted }}>
+                  <Spinner /> Loading contact queries...
+                </div>
+              ) : queries.length === 0 ? (
+                <div style={{ padding: 40, textAlign: "center", color: T.muted, fontSize: 13 }}>No inquiries found.</div>
               ) : (
-                [...subscriptions]
-                  .sort((a, b) => {
-                    if (a.status === "ACTIVE" && b.status !== "ACTIVE") return -1;
-                    if (a.status !== "ACTIVE" && b.status === "ACTIVE") return 1;
-                    return new Date(a.endDate) - new Date(b.endDate);
-                  })
-                  .map((sub, i) => {
-                    const org = orgs.find(o => o.id === sub.organizationId);
-                    const diff = new Date(sub.endDate) - new Date();
-                    const daysLeft = Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
-                    const isUrgent = sub.status === "ACTIVE" && daysLeft <= 10;
-                    
-                    return (
-                      <div key={sub.id} className="usa-row" style={{
-                        display: "grid", gridTemplateColumns: "1.2fr 1fr 180px 100px 100px 120px",
-                        padding: "12px 16px", alignItems: "center", borderBottom: i < subscriptions.length - 1 ? `1px solid ${T.border}` : "none",
-                        background: isUrgent ? "rgba(239,68,68,0.02)" : "transparent"
-                      }}>
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: "#fff" }}>{org?.name || `Org #${sub.organizationId}`}</div>
-                          <div style={{ fontSize: 11, color: T.muted }}>{org?.email || "—"}</div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: "#fff" }}>{sub.subscriptionPackage?.name}</div>
-                          <div style={{ fontSize: 11, color: T.muted }}>₹{sub.subscriptionPackage?.price?.toLocaleString("en-IN")}</div>
-                        </div>
-                        <div style={{ fontSize: 12, color: T.muted }}>
-                          {new Date(sub.startDate).toLocaleDateString("en-IN")} - {new Date(sub.endDate).toLocaleDateString("en-IN")}
-                        </div>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: sub.status === "ACTIVE" ? (daysLeft <= 3 ? C.red : daysLeft <= 10 ? C.gold : C.green) : T.muted }}>
-                          {sub.status === "ACTIVE" ? `${daysLeft} Days` : "Expired"}
-                        </div>
-                        <div>
-                          <Chip color={sub.status === "ACTIVE" ? C.green : C.red}>{sub.status}</Chip>
-                        </div>
-                        <div>
-                          {sub.status === "ACTIVE" && (
-                            <button
-                              onClick={() => handleSendReminder(sub.id, org?.name || `Org #${sub.organizationId}`)}
-                              disabled={remindingSubId === sub.id}
+                <div style={{ overflowX: "auto" }}>
+                  <div style={{ minWidth: 900 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "130px 1.5fr 1fr 2fr 100px 140px 90px", padding: "10px 16px", borderBottom: `1px solid ${T.border}`, fontSize: 11, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: .5 }}>
+                      <span>Date</span><span>Sender</span><span>Subject</span><span>Message</span><span>WhatsApp</span><span>Status</span><span>Action</span>
+                    </div>
+                    {queries.map((q, i) => {
+                      const dateStr = new Date(q.receivedAt).toLocaleDateString("en-IN", {
+                        day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"
+                      });
+                      const cleanPhone = q.phone.replace(/[^\d]/g, "");
+                      const waLink = `https://wa.me/${cleanPhone}`;
+                      return (
+                        <div key={q.id} className="usa-row" style={{ display: "grid", gridTemplateColumns: "130px 1.5fr 1fr 2fr 100px 140px 90px", padding: "12px 16px", alignItems: "center", borderBottom: i < queries.length - 1 ? `1px solid ${T.border}` : "none" }}>
+                          <div style={{ fontSize: 12, color: T.muted }}>{dateStr}</div>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: "#fff" }}>{q.name}</div>
+                            <div style={{ fontSize: 11, color: T.muted }}>{q.email} · {q.phone}</div>
+                          </div>
+                          <div style={{ fontSize: 12, color: "#fff", fontWeight: 500 }}>{q.subject}</div>
+                          <div style={{ fontSize: 12, color: T.muted, paddingRight: 10, whiteSpace: "pre-line", maxHeight: 80, overflowY: "auto" }}>{q.message}</div>
+                          <div>
+                            <a href={waLink} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 4, textDecoration: "none", color: "#25D366", fontSize: 12, fontWeight: 700 }}>
+                              💬 Chat
+                            </a>
+                          </div>
+                          <div>
+                            <select
+                              value={q.status}
+                              onChange={async (e) => {
+                                const newStatus = e.target.value;
+                                try {
+                                  await usaUpdateContactStatus(q.id, newStatus);
+                                  loadContactQueries();
+                                } catch (err) {
+                                  alert("Failed to update status: " + err.message);
+                                }
+                              }}
                               style={{
-                                background: remindingSubId === sub.id ? "rgba(6,182,212,0.1)" : "rgba(245,158,11,0.1)",
-                                border: `1px solid ${remindingSubId === sub.id ? "rgba(6,182,212,0.2)" : "rgba(245,158,11,0.2)"}`,
-                                color: remindingSubId === sub.id ? C.blue : C.gold,
-                                padding: "5px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: remindingSubId === sub.id ? "not-allowed" : "pointer",
-                                width: "100%", textAlign: "center", fontFamily: "'DM Sans',sans-serif"
+                                background: q.status === "RESOLVED" ? `${C.green}18` : q.status === "PENDING" ? `${C.gold}18` : `${C.red}18`,
+                                border: `1px solid ${q.status === "RESOLVED" ? C.green : q.status === "PENDING" ? C.gold : C.red}`,
+                                color: q.status === "RESOLVED" ? C.green : q.status === "PENDING" ? C.gold : C.red,
+                                fontSize: 11,
+                                fontWeight: 700,
+                                padding: "4px 8px",
+                                borderRadius: 6,
+                                cursor: "pointer",
+                                outline: "none"
                               }}
                             >
-                              {remindingSubId === sub.id ? <Spinner /> : "✉️ Remind"}
+                              <option value="NEW" style={{ background: T.card2, color: "#fff" }}>NEW</option>
+                              <option value="PENDING" style={{ background: T.card2, color: "#fff" }}>PENDING</option>
+                              <option value="RESOLVED" style={{ background: T.card2, color: "#fff" }}>RESOLVED</option>
+                            </select>
+                          </div>
+                          <div>
+                            <button
+                              onClick={async () => {
+                                if (!window.confirm("Are you sure you want to delete this query?")) return;
+                                try {
+                                  await usaDeleteContactMessage(q.id);
+                                  loadContactQueries();
+                                } catch (err) {
+                                  alert("Failed to delete: " + err.message);
+                                }
+                              }}
+                              style={{ background: "rgba(239, 68, 68, 0.1)", border: `1px solid ${C.red}40`, color: C.red, padding: "4px 8px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontWeight: 600 }}
+                            >
+                              Delete
                             </button>
-                          )}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })
+                      );
+                    })}
+                  </div>
+                </div>
               )}
             </div>
           </div>

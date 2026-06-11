@@ -29,6 +29,7 @@ public class Attendance {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "course_id", nullable = false)
+    @JsonIgnoreProperties({"enrolledStudents", "teacher", "createdAt", "updatedAt", "organizationId"})
     private Course course;
 
     @Column(nullable = false)

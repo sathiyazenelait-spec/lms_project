@@ -6,10 +6,10 @@ import { login, registerUser, getActiveDepartments, getOrganizations, forgotPass
 
 // ─── ROLE LOGIN CARDS ─────────────────────────────────────────────────────────
 const ROLES = [
-  { key: "student", icon: "👨‍🎓", label: "Student", sub: "Access courses, assignments & performance", color: T.accent,  bg: "linear-gradient(135deg,#011F2B,#02485E)" },
-  { key: "teacher", icon: "👨‍🏫", label: "Teacher", sub: "Manage courses, students & classes",       color: T.accentG, bg: "linear-gradient(135deg,#001A0E,#01321A)" },
-  { key: "parent",  icon: "👨‍👩‍👦", label: "Parent",  sub: "Track your child's progress & fees",       color: T.accentR, bg: "linear-gradient(135deg,#1A0005,#2D0010)" },
-  { key: "admin",   icon: "🛡️",  label: "Admin",   sub: "Full system control & analytics",           color: T.accentY, bg: "linear-gradient(135deg,#1A1200,#2D2000)" },
+  { key: "student", icon: "👨‍🎓", label: "Student", sub: "Access courses, assignments & performance", color: T.accent, bg: "linear-gradient(135deg,#011F2B,#02485E)" },
+  { key: "teacher", icon: "👨‍🏫", label: "Teacher", sub: "Manage courses, students & classes", color: T.accentG, bg: "linear-gradient(135deg,#001A0E,#01321A)" },
+  { key: "parent", icon: "👨‍👩‍👦", label: "Parent", sub: "Track your child's progress & fees", color: T.accentR, bg: "linear-gradient(135deg,#1A0005,#2D0010)" },
+  { key: "admin", icon: "🛡️", label: "Admin", sub: "Full system control & analytics", color: T.accentY, bg: "linear-gradient(135deg,#1A1200,#2D2000)" },
 ];
 
 // ─── INLINE STYLES ─────────────────────────────────────────────────────────────
@@ -63,8 +63,8 @@ const injectStyles = () => {
 
 // ─── REGISTRATION MODAL ───────────────────────────────────────────────────────
 const RegModal = ({ role, onClose, onSuccess }) => {
-  const [form, setForm]     = useState({});
-  const [depts, setDepts]   = useState([]);
+  const [form, setForm] = useState({});
+  const [depts, setDepts] = useState([]);
   const [orgs, setOrgs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingDepts, setLoadingDepts] = useState(false);
@@ -75,8 +75,8 @@ const RegModal = ({ role, onClose, onSuccess }) => {
       .catch(console.error);
   }, []);
 
-  const f   = (key) => form[key] || "";
-  
+  const f = (key) => form[key] || "";
+
   // Custom setter that fetches departments when organizationName changes
   const handleFieldChange = (key) => (e) => {
     const val = e.target.value;
@@ -111,18 +111,18 @@ const RegModal = ({ role, onClose, onSuccess }) => {
 
   const handleSubmit = async () => {
     const password = f("password");
-    const confirm  = f("confirm");
+    const confirm = f("confirm");
     if (password !== confirm) { alert("Passwords do not match!"); return; }
-    if (password.length < 8)  { alert("Password must be at least 8 characters."); return; }
+    if (password.length < 8) { alert("Password must be at least 8 characters."); return; }
 
     const base = { name: f("name"), email: f("email"), password, role: role.toUpperCase() };
     let extra = {};
     if (role === "student" || role === "teacher")
-      extra = { department: f("department"), gender: f("gender") || null, phone: f("phone") || null,organizationName: f("organizationName") || null };
-    if(role === "parent")
+      extra = { department: f("department"), gender: f("gender") || null, phone: f("phone") || null, organizationName: f("organizationName") || null };
+    if (role === "parent")
       extra = { organizationName: f("organizationName") || null };
     if (role === "teacher")
-      extra = { ...extra, qualification: f("qualification") || null ,organizationName: f("organizationName") || null};
+      extra = { ...extra, qualification: f("qualification") || null, organizationName: f("organizationName") || null };
     if (role === "admin")
       extra = { academyName: f("academyName"), referralId: f("referralId"), gender: f("gender") || null };
 
@@ -131,7 +131,7 @@ const RegModal = ({ role, onClose, onSuccess }) => {
       const auth = await registerUser({ ...base, ...extra });
       if (auth?.emailWarnings?.length > 0) {
         const cantReach = auth.emailWarnings.filter(w => w.startsWith("Can't reach"));
-        const failed    = auth.emailWarnings.filter(w => w.startsWith("Failed to send"));
+        const failed = auth.emailWarnings.filter(w => w.startsWith("Failed to send"));
         if (cantReach.length > 0)
           alert("✅ Account created!\n\n⚠️ Some emails couldn't be delivered:\n" + cantReach.map(w => "  • " + w).join("\n"));
         else if (failed.length > 0)
@@ -154,11 +154,11 @@ const RegModal = ({ role, onClose, onSuccess }) => {
           : "Create your account to get started."}
       </p>
       <Input label={`${title.replace(" Registration", "")} Name *`} value={f("name")} onChange={handleFieldChange("name")} placeholder="Full name" />
-      {role === "admin" && <Input label="Academy Name *"   value={f("academyName")}   onChange={handleFieldChange("academyName")}   placeholder="Academy / Institute name" />}
-      {role === "admin" && <Input label="Referral ID *"    value={f("referralId")}    onChange={handleFieldChange("referralId")}    placeholder="Super Admin referral ID" />}
+      {role === "admin" && <Input label="Academy Name *" value={f("academyName")} onChange={handleFieldChange("academyName")} placeholder="Academy / Institute name" />}
+      {role === "admin" && <Input label="Referral ID *" value={f("referralId")} onChange={handleFieldChange("referralId")} placeholder="Super Admin referral ID" />}
       {role === "teacher" && <Input label="Qualification" value={f("qualification")} onChange={handleFieldChange("qualification")} placeholder="e.g. M.Tech, PhD" />}
-      
-      {(role === "student" || role === "teacher" || role ==="parent") && (
+
+      {(role === "student" || role === "teacher" || role === "parent") && (
         <Select label="Organization *" value={f("organizationName")} onChange={handleFieldChange("organizationName")}
           options={[
             { value: "", label: orgs.length === 0 ? "Loading organizations…" : "-- Select Organization --" },
@@ -181,19 +181,102 @@ const RegModal = ({ role, onClose, onSuccess }) => {
         <Select label="Gender" value={f("gender")} onChange={handleFieldChange("gender")}
           options={[
             { value: "", label: "Select Gender" },
-            { value: "Male",   label: "Male" },
+            { value: "Male", label: "Male" },
             { value: "Female", label: "Female" },
-            { value: "Other",  label: "Other" },
+            { value: "Other", label: "Other" },
           ]}
         />
       )}
-      <Input label="Email Address *"   type="email"    value={f("email")}    onChange={handleFieldChange("email")}    placeholder={`${role}@email.com`} />
-      <Input label="Password *"        type="password" value={f("password")} onChange={handleFieldChange("password")} placeholder="Min 8 characters" />
-      <Input label="Confirm Password *" type="password" value={f("confirm")}  onChange={handleFieldChange("confirm")}  placeholder="Repeat password" />
+      <Input label="Email Address *" type="email" value={f("email")} onChange={handleFieldChange("email")} placeholder={`${role}@email.com`} />
+      <Input label="Password *" type="password" value={f("password")} onChange={handleFieldChange("password")} placeholder="Min 8 characters" />
+      <Input label="Confirm Password *" type="password" value={f("confirm")} onChange={handleFieldChange("confirm")} placeholder="Repeat password" />
       <Btn variant="primary" full size="lg" onClick={handleSubmit} disabled={loading}>
         {loading ? "Creating account…" : "Create Account →"}
       </Btn>
     </Modal>
+  );
+};
+
+// ─── SHARED LOGIN FORM (used in both card & mobile panel) ─────────────────────
+const LoginForm = ({ role, credentials, onFieldChange, onLoginClick, onRegisterClick, onForgotPasswordClick, loadingRole }) => {
+  const textColor = (role.key === "admin" || role.key === "parent") ? "#000" : "#fff";
+  return (
+    <div className="lms-card-form" style={{ marginTop: 20 }}>
+      <div style={{ marginBottom: 10 }}>
+        <input
+          className="lms-card-input"
+          type="email"
+          placeholder={`${role.label.toLowerCase()}@email.com`}
+          value={credentials[role.key].email}
+          onChange={onFieldChange(role.key, "email")}
+          onFocus={e => (e.target.style.borderColor = role.color)}
+          onBlur={e => (e.target.style.borderColor = "rgba(255,255,255,.15)")}
+        />
+      </div>
+      <div style={{ marginBottom: 8 }}>
+        <input
+          className="lms-card-input"
+          type="password"
+          placeholder="Password"
+          value={credentials[role.key].password}
+          onChange={onFieldChange(role.key, "password")}
+          onFocus={e => (e.target.style.borderColor = role.color)}
+          onBlur={e => (e.target.style.borderColor = "rgba(255,255,255,.15)")}
+        />
+      </div>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 14 }}>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onForgotPasswordClick();
+          }}
+          style={{
+            background: "none",
+            border: "none",
+            color: "rgba(255, 255, 255, 0.6)",
+            fontSize: 11,
+            cursor: "pointer",
+            padding: "2px 4px",
+            fontFamily: "DM Sans",
+            textDecoration: "underline",
+          }}
+          onMouseEnter={e => e.target.style.color = role.color}
+          onMouseLeave={e => e.target.style.color = "rgba(255, 255, 255, 0.6)"}
+        >
+          Forgot Password?
+        </button>
+      </div>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onLoginClick(role.key);
+        }}
+        disabled={loadingRole === role.key}
+        style={{
+          width: "100%", border: "none", padding: "12px", borderRadius: 9,
+          fontWeight: 800, fontSize: 14, cursor: "pointer", marginBottom: 10,
+          fontFamily: "DM Sans",
+          background: `linear-gradient(135deg, ${role.color}, ${role.color}CC)`,
+          color: "white",
+          opacity: loadingRole === role.key ? 0.7 : 1,
+        }}
+      >
+        {loadingRole === role.key ? "Logging in…" : `Login as ${role.label} →`}
+      </button>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onRegisterClick(role.key);
+        }}
+        style={{
+          width: "100%", background: "rgba(255,255,255,.06)",
+          border: "1px solid rgba(255,255,255,.15)", color: "rgba(255,255,255,.6)",
+          padding: "9px", borderRadius: 9, fontSize: 12, cursor: "pointer", fontFamily: "DM Sans",
+        }}
+      >
+        New {role.label}? Register here
+      </button>
+    </div>
   );
 };
 
@@ -315,76 +398,23 @@ const ForgotModal = ({ onClose }) => {
   );
 };
 
-// ─── SHARED LOGIN FORM (used in both card & mobile panel) ─────────────────────
-const LoginForm = ({ role, credentials, onFieldChange, onLoginClick, onRegisterClick, loadingRole }) => {
-  const textColor = (role.key === "admin" || role.key === "parent") ? "#000" : "#fff";
-  return (
-    <div className="lms-card-form" style={{ marginTop: 20 }}>
-      <div style={{ marginBottom: 10 }}>
-        <input
-          className="lms-card-input"
-          type="email"
-          placeholder={`${role.label.toLowerCase()}@email.com`}
-          value={credentials[role.key].email}
-          onChange={onFieldChange(role.key, "email")}
-          onFocus={e => (e.target.style.borderColor = role.color)}
-          onBlur={e  => (e.target.style.borderColor = "rgba(255,255,255,.15)")}
-        />
-      </div>
-      <div style={{ marginBottom: 14 }}>
-        <input
-          className="lms-card-input"
-          type="password"
-          placeholder="Password"
-          value={credentials[role.key].password}
-          onChange={onFieldChange(role.key, "password")}
-          onFocus={e => (e.target.style.borderColor = role.color)}
-          onBlur={e  => (e.target.style.borderColor = "rgba(255,255,255,.15)")}
-        />
-      </div>
-      <button
-        onClick={() => onLoginClick(role.key)}
-        disabled={loadingRole === role.key}
-        style={{
-          width: "100%", border: "none", padding: "12px", borderRadius: 9,
-          fontWeight: 800, fontSize: 14, cursor: "pointer", marginBottom: 10,
-          fontFamily: "DM Sans",
-          background: `linear-gradient(135deg, ${role.color}, ${role.color}CC)`,
-          color: textColor,
-          opacity: loadingRole === role.key ? 0.7 : 1,
-        }}
-      >
-        {loadingRole === role.key ? "Logging in…" : `Login as ${role.label} →`}
-      </button>
-      <button
-        onClick={() => onRegisterClick(role.key)}
-        style={{
-          width: "100%", background: "rgba(255,255,255,.06)",
-          border: "1px solid rgba(255,255,255,.15)", color: "rgba(255,255,255,.6)",
-          padding: "9px", borderRadius: 9, fontSize: 12, cursor: "pointer", fontFamily: "DM Sans",
-        }}
-      >
-        New {role.label}? Register here
-      </button>
-    </div>
-  );
-};
+
 
 // ─── LOGIN PAGE ───────────────────────────────────────────────────────────────
 const LoginPage = ({ onLoginSuccess, onBack, onUltraAdminLogin }) => {
   useEffect(() => { injectStyles(); }, []);
 
-  const [zoomed,      setZoomed]      = useState(null);   // hover (desktop)
-  const [pinned,      setPinned]      = useState(null);   // click-pinned (desktop)
-  const [mobileRole,  setMobileRole]  = useState("");     // dropdown (mobile)
-  const [modal,       setModal]       = useState(null);
+  const [zoomed, setZoomed] = useState(null);   // hover (desktop)
+  const [pinned, setPinned] = useState(null);   // click-pinned (desktop)
+  const [mobileRole, setMobileRole] = useState("");     // dropdown (mobile)
+  const [modal, setModal] = useState(null);
   const [forgotModal, setForgotModal] = useState(false);
   const [loadingRole, setLoadingRole] = useState(null);
   const [credentials, setCredentials] = useState({
     student: { email: "", password: "" },
     teacher: { email: "", password: "" },
-    parent:  { email: "", password: "" },
-    admin:   { email: "", password: "" },
+    parent: { email: "", password: "" },
+    admin: { email: "", password: "" },
   });
 
   const handleFieldChange = (roleKey, field) => (e) =>
@@ -417,11 +447,11 @@ const LoginPage = ({ onLoginSuccess, onBack, onUltraAdminLogin }) => {
       <div style={{
         padding: "0 20px", height: 64, display: "flex", alignItems: "center",
         justifyContent: "space-between", borderBottom: `1px solid ${T.border}`,
-        background: "rgba(6,4,15,.8)", backdropFilter: "blur(20px)",
+        background: T.headerBg, backdropFilter: "blur(20px)",
       }}>
-        <div style={{ fontFamily: "Syne", fontSize: 18, fontWeight: 900, display: "flex", alignItems: "center", gap: 10, color: "#fff" }}>
-          <div style={{ width: 32, height: 32, background: `linear-gradient(135deg,${T.primary},${T.accent})`, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>
-            🎓
+        <div style={{ fontFamily: "Syne", fontSize: 18, fontWeight: 900, display: "flex", alignItems: "center", gap: 10, color: T.text }}>
+          <div>
+            <img src="/zenlogo.png" alt="logo" height={60} width={60} />
           </div>
           Zenelait<span style={{ color: T.accent }}>InfoTech</span>
         </div>
@@ -436,7 +466,7 @@ const LoginPage = ({ onLoginSuccess, onBack, onUltraAdminLogin }) => {
       }}>
         {/* Title */}
         <div style={{ textAlign: "center", marginBottom: 36 }}>
-          <div style={{ fontFamily: "Syne", fontSize: "clamp(22px,5vw,40px)", fontWeight: 900, color: "#fff", marginBottom: 8 }}>
+          <div style={{ fontFamily: "Syne", fontSize: "clamp(22px,5vw,40px)", fontWeight: 900, color: T.text, marginBottom: 8 }}>
             Welcome to <span style={{ color: T.accent }}>Zenelait</span> LMS
           </div>
           <p style={{ color: T.muted, fontSize: 13 }}>
@@ -449,7 +479,7 @@ const LoginPage = ({ onLoginSuccess, onBack, onUltraAdminLogin }) => {
         ══════════════════════════════════════════ */}
         <div style={{ display: "none", width: "100%", maxWidth: 440 }}
           className="lms-mobile-view"
-          // shown via the <style> block below
+        // shown via the <style> block below
         >
           {/* Role dropdown */}
           <select
@@ -494,6 +524,7 @@ const LoginPage = ({ onLoginSuccess, onBack, onUltraAdminLogin }) => {
                 onFieldChange={handleFieldChange}
                 onLoginClick={handleLoginClick}
                 onRegisterClick={setModal}
+                onForgotPasswordClick={() => setForgotModal(true)}
                 loadingRole={loadingRole}
               />
             </div>
@@ -562,6 +593,7 @@ const LoginPage = ({ onLoginSuccess, onBack, onUltraAdminLogin }) => {
                       onFieldChange={handleFieldChange}
                       onLoginClick={handleLoginClick}
                       onRegisterClick={setModal}
+                      onForgotPasswordClick={() => setForgotModal(true)}
                       loadingRole={loadingRole}
                     />
                   )}
@@ -577,8 +609,8 @@ const LoginPage = ({ onLoginSuccess, onBack, onUltraAdminLogin }) => {
             <button key={l}
               onClick={
                 l === "← Back to Website" ? onBack :
-                l === "Forgot Password?" ? () => setForgotModal(true) :
-                undefined
+                  l === "Forgot Password?" ? () => setForgotModal(true) :
+                    undefined
               }
               style={{ background: "none", border: "none", color: T.muted, fontSize: 12, cursor: "pointer" }}
             >{l}</button>
