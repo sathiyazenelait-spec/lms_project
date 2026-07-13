@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Zenelait LMS Comprehensive Manual</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Inter:wght@300;400;600;700&display=swap');
+    
+    @page {
+      size: A4;
+      margin: 15mm;
+    }
+    
+    body {
+      font-family: 'Inter', sans-serif;
+      color: #1f2937;
+      line-height: 1.4;
+      margin: 0;
+      padding: 0;
+      -webkit-print-color-adjust: exact;
+    }
+
+    h1, h2, h3, h4 {
+      font-family: 'Cinzel', Georgia, serif;
+      color: #102a43;
+      margin-top: 0;
+    }
+    
+    .page {
+      page-break-after: always;
+      position: relative;
+      min-height: 260mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    
+    .page:last-child {
+      page-break-after: avoid;
+    }
+    
+    .page-header {
+      border-bottom: 2px solid #e5e7eb;
+      padding-bottom: 8px;
+      margin-bottom: 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .logo-text {
+      font-family: 'Cinzel', serif;
+      font-weight: 700;
+      font-size: 18px;
+      letter-spacing: 2px;
+      color: #102a43;
+    }
+    
+    .logo-subtext {
+      font-size: 9px;
+      color: #627d98;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    
+    .page-footer {
+      border-top: 1px solid #e5e7eb;
+      padding-top: 8px;
+      margin-top: 15px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 9px;
+      color: #9fb3c8;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    .page-num {
+      color: #e12d39;
+      font-weight: 700;
+    }
+    
+    .content {
+      flex-grow: 1;
+    }
+    
+    /* Cover Page */
+    .cover-title-area {
+      text-align: center;
+      margin: 40px 0;
+    }
+    
+    .cover-title {
+      font-size: 38px;
+      color: #102a43;
+      margin-bottom: 10px;
+      letter-spacing: 2px;
+    }
+    
+    .cover-subtitle {
+      font-family: 'Inter', sans-serif;
+      font-weight: 700;
+      font-size: 12px;
+      color: #dd6b20;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 20px;
+      border-top: 1.5px solid #dd6b20;
+      border-bottom: 1.5px solid #dd6b20;
+      padding: 6px 0;
+      display: inline-block;
+    }
+    
+    .cover-desc {
+      font-size: 14px;
+      color: #486581;
+      max-width: 580px;
+      margin: 0 auto;
+      text-align: justify;
+      font-weight: 300;
+    }
+    
+    .two-columns {
+      display: flex;
+      justify-content: space-between;
+      gap: 30px;
+      margin-top: 30px;
+      border-top: 1px solid #e5e7eb;
+      padding-top: 20px;
+    }
+    
+    .col {
+      width: 50%;
+    }
+    
+    .col h3 {
+      font-size: 12px;
+      color: #102a43;
+      border-bottom: 2px solid #102a43;
+      padding-bottom: 4px;
+      margin-bottom: 10px;
+      letter-spacing: 1px;
+    }
+    
+    .col p {
+      font-size: 11px;
+      color: #486581;
+      text-align: justify;
+    }
+    
+    .security-notice {
+      background: #f8fafc;
+      border-left: 4px solid #627d98;
+      padding: 12px;
+      font-size: 10px;
+      color: #486581;
+      margin-top: 30px;
+    }
+    
+    .security-notice strong {
+      color: #102a43;
+    }
+    
+    /* TOC */
+    .toc-container {
+      margin-top: 20px;
+    }
+    
+    .toc-item {
+      display: flex;
+      align-items: baseline;
+      margin-bottom: 10px;
+      font-size: 12px;
+    }
+    
+    .toc-num {
+      font-weight: 600;
+      color: #102a43;
+      margin-right: 8px;
+    }
+    
+    .toc-title {
+      font-weight: 600;
+      color: #334e68;
+    }
+    
+    .toc-dots {
+      flex-grow: 1;
+      border-bottom: 1px dotted #bcccdc;
+      margin: 0 8px;
+    }
+    
+    .toc-page {
+      font-weight: 700;
+      color: #e12d39;
+    }
+    
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 15px 0;
+      font-size: 11px;
+    }
+    
+    th, td {
+      border: 1px solid #cbd5e1;
+      padding: 8px 10px;
+      text-align: left;
+    }
+    
+    th {
+      background-color: #f1f5f9;
+      color: #0f172a;
+      font-family: 'Cinzel', serif;
+      font-size: 10px;
+      font-weight: 700;
+    }
+    
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      border-radius: 20px;
+      background-color: #f1f5f9;
+      color: #475569;
+    }
+    
+    .badge-usa { background-color: rgba(245,158,11,0.15); color: #b45309; border: 1px solid rgba(245,158,11,0.3); }
+    .badge-sa { background-color: rgba(124,58,237,0.15); color: #6d28d9; border: 1px solid rgba(124,58,237,0.3); }
+    .badge-adm { background-color: rgba(6,182,212,0.15); color: #0891b2; border: 1px solid rgba(6,182,212,0.3); }
+    .badge-tch { background-color: rgba(16,185,129,0.15); color: #047857; border: 1px solid rgba(16,185,129,0.3); }
+    .badge-stu { background-color: rgba(59,130,246,0.15); color: #1d4ed8; border: 1px solid rgba(59,130,246,0.3); }
+    .badge-par { background-color: rgba(239,68,68,0.15); color: #b91c1c; border: 1px solid rgba(239,68,68,0.3); }
+
+    .section-title {
+      font-size: 15px;
+      color: #102a43;
+      border-bottom: 2px solid #dd6b20;
+      padding-bottom: 4px;
+      margin-bottom: 12px;
+      letter-spacing: 0.5px;
+    }
+    
+    .sub-section-title {
+      font-size: 11px;
+      color: #334e68;
+      margin-top: 12px;
+      margin-bottom: 4px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .api-route {
+      font-family: monospace;
+      background-color: #f8fafc;
+      padding: 3px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      color: #0f172a;
+      border: 1px solid #e2e8f0;
+      font-weight: bold;
+    }
+    
+    .api-badge {
+      display: inline-block;
+      padding: 1px 4px;
+      font-size: 9px;
+      font-weight: 800;
+      border-radius: 3px;
+      margin-right: 4px;
+      color: white;
+    }
+    .api-get { background-color: #10b981; }
+    .api-post { background-color: #3b82f6; }
+    .api-put { background-color: #f59e0b; }
+    .api-patch { background-color: #8b5cf6; }
+    .api-delete { background-color: #ef4444; }
+
+    ul {
+      padding-left: 15px;
+      margin: 6px 0;
+      font-size: 11px;
+      color: #475569;
+    }
+    
+    li {
+      margin-bottom: 4px;
+    }
+
+    p {
+      font-size: 11px;
+      color: #475569;
+      margin: 6px 0;
+    }
+
+    .screenshot {
+      display: block;
+      max-width: 100%;
+      max-height: 100mm;
+      margin: 12px auto;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- PAGE 1: COVER PAGE -->
+  <div class="page">
+    <div class="page-header">
+      <div>
+        <div class="logo-text">ZENELAIT</div>
+        <div class="logo-subtext">INFO TECH</div>
+      </div>
+      <div style="text-align: right; font-size: 10px; font-weight: 600; color: #627d98;">
+        ZENELAIT INFOTECH
+        <div style="color:#e12d39; font-weight:700; margin-top:2px;">CORPORATE BROCHURE & MANUAL</div>
+      </div>
+    </div>
+    
+    <div class="content" style="display: flex; flex-direction: column; justify-content: center;">
+      <div class="cover-title-area">
+        <h1 class="cover-title">ZENELAIT LMS</h1>
+        <div class="cover-subtitle">COMPREHENSIVE ROLE-BASED LEARNING MANAGEMENT MANUAL</div>
+        <p class="cover-desc">
+          An all-inclusive, multi-role digital learning platform designed for modern educational institutions and training academies. Built by Zenelait InfoTech Private Limited to streamline workflows from classroom attendance to board-level financial and academic audits.
+        </p>
+      </div>
+      
+      <div class="two-columns">
+        <div class="col">
+          <h3>CORPORATE PROFILE</h3>
+          <p>
+            Zenelait InfoTech is a leading software engineering firm dedicated to building next-generation enterprise applications. We specialize in designing customizable SaaS platforms that integrate CRM, ERP, and learning management networks into unified hubs.
+          </p>
+        </div>
+        <div class="col">
+          <h3>ZENELAIT LMS VISION</h3>
+          <p>
+            Zenelait LMS enables educational institutions to achieve 100% operational transparency. Our platform bridges the gap between daily classroom metrics and executive administration auditing, delivering automated compliance checks, integrated payment gateways, and AI-driven student performance insights.
+          </p>
+        </div>
+      </div>
+      
+      <div class="security-notice">
+        <strong>OFFICIAL CONTACT & SECURITY NOTICE:</strong> This document is proprietary information of Zenelait InfoTech Private Limited. Unauthorized reproduction or distribution of this manual is strictly prohibited. All system configurations, database connections, and REST API paths are subject to security audits.
+      </div>
+    </div>
+    
+    <div class="page-footer">
+      <div>Zenelait LMS Reference Manual</div>
+      <div>v2.0 Enterprise Edition</div>
+      <div class="page-num">Page 1 of 12</div>
+    </div>
+  </div>
+
+  <!-- PAGE 2: TABLE OF CONTENTS -->
+  <div class="page">
+    <div class="page-header">
+      <div>
+        <div class="logo-text">ZENELAIT</div>
+        <div class="logo-subtext">INFO TECH</div>
+      </div>
+    </div>
+    
+    <div class="content">
+      <h2 style="font-size: 20px; border-bottom: 2px solid #102a43; padding-bottom: 8px; margin-bottom: 20px;">TABLE OF CONTENTS</h2>
+      <div class="toc-container">
+        <div class="toc-item">
+          <span class="toc-num">1.</span>
+          <span class="toc-title">System Architecture & Backend Decoupling</span>
+          <span class="toc-dots"></span>
+          <span class="toc-page">Page 3</span>
+        </div>
+        <div class="toc-item">
+          <span class="toc-num">2.</span>
+          <span class="toc-title">Role Hierarchies & Dashboard Permissions Mapping</span>
+          <span class="toc-dots"></span>
+          <span class="toc-page">Page 4</span>
+        </div>
+        <div class="toc-item">
+          <span class="toc-num">3.</span>
+          <span class="toc-title">Ultra Super Admin Dashboard (System Level Control)</span>
+          <span class="toc-dots"></span>
+          <span class="toc-page">Page 5</span>
+        </div>
+        <div class="toc-item">
+          <span class="toc-num">4.</span>
+          <span class="toc-title">Super Admin Portal (Academy Level Management)</span>
+          <span class="toc-dots"></span>
+          <span class="toc-page">Page 6</span>
+        </div>
+        <div class="toc-item">
+          <span class="toc-num">5.</span>
+          <span class="toc-title">Admin Portal (Academic Operations & Coordinators)</span>
+          <span class="toc-dots"></span>
+          <span class="toc-page">Page 7</span>
+        </div>
+        <div class="toc-item">
+          <span class="toc-num">6.</span>
+          <span class="toc-title">Admin Portal (Timetables, Fees, and Scheduling)</span>
+          <span class="toc-dots"></span>
+          <span class="toc-page">Page 8</span>
+        </div>
+        <div class="toc-item">
+          <span class="toc-num">7.</span>
+          <span class="toc-title">Teacher Portal (Classroom logs, Attendance & Grading)</span>
+          <span class="toc-dots"></span>
+          <span class="toc-page">Page 9</span>
+        </div>
+        <div class="toc-item">
+          <span class="toc-num">8.</span>
+          <span class="toc-title">Student Portal (Coursework & Certificates Engine)</span>
+          <span class="toc-dots"></span>
+          <span class="toc-page">Page 10</span>
+        </div>
+        <div class="toc-item">
+          <span class="toc-num">9.</span>
+          <span class="toc-title">Parent Portal (Auditing & Integrated Razorpay Wallet)</span>
+          <span class="toc-dots"></span>
+          <span class="toc-page">Page 11</span>
+        </div>
+        <div class="toc-item">
+          <span class="toc-num">10.</span>
+          <span class="toc-title">AI Assistant Integration (Gemini Contextual Pipeline)</span>
+          <span class="toc-dots"></span>
+          <span class="toc-page">Page 12</span>
+        </div>
+      </div>
+      
+      <div class="security-notice" style="margin-top: 60px;">
+        <strong>Security Note:</strong> User role configurations are validated dynamically at database query compile-time. Any route modifications are blocked by client side Auth guards.
+      </div>
+    </div>
+    
+    <div class="page-footer">
+      <div>Zenelait LMS Reference Manual</div>
+      <div class="page-num">Page 2 of 12</div>
+    </div>
+  </div>
+
+  <!-- PAGE 3: SYSTEM ARCHITECTURE -->
+  <div class="page">
+    <div class="page-header">
+      <div>
+        <div class="logo-text">ZENELAIT</div>
+        <div class="logo-subtext">INFO TECH</div>
+      </div>
+    </div>
+    
+    <div class="content">
+      <h2 class="section-title">1. SYSTEM ARCHITECTURE & BACKEND DECOUPLING</h2>
+      <p>
+        Zenelait LMS employs a highly responsive, decoupled client-server architecture model. The client-side dashboard framework runs on a React Single Page Application (SPA), connecting to a multi-threaded Spring Boot 3 enterprise application that orchestrates business logic and communicates directly with external cloud-based Generative AI models.
+      </p>
+      
+      <h3 class="sub-section-title">Technical Stack Details</h3>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 25%;">Layer</th>
+            <th style="width: 35%;">Technology</th>
+            <th style="width: 40%;">Responsibility</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Frontend Client</strong></td>
+            <td>React 18, Styled-Components, Recharts</td>
+            <td>Role Dashboards, Real-time Charts, Responsive Layouts, Client-side routing, Export Utilities.</td>
+          </tr>
+          <tr>
+            <td><strong>Java Backend</strong></td>
+            <td>Spring Boot 3.2, Java 17/20, Hibernate JPA, Apache Maven</td>
+            <td>Business Logic, Multi-role REST Data APIs, Security Filter Chains, and Batch Scheduling.</td>
+          </tr>
+          <tr>
+            <td><strong>Generative AI Integration</strong></td>
+            <td>Google Gemini API (gemini-2.5-flash), Hugging Face Inference API</td>
+            <td>Intelligent Role-Specific Assistant (student performance, parent audits, attendance, and fee querying).</td>
+          </tr>
+          <tr>
+            <td><strong>Database</strong></td>
+            <td>MySQL 8.x</td>
+            <td>Relational Schemas, User Ledgers (single-table User model with polymorphic roles), Batches/Courses Catalog, Fee Logs.</td>
+          </tr>
+        </tbody>
+      </table>
+      
+      <h3 class="sub-section-title">Security Filter Chain & Decoupling Model</h3>
+      <p>
+        All network interactions use JSON-encoded requests. Spring Security handles endpoint protection, verifying JWT signature keys encoded in client-header HTTP bearer authentication tokens (<code>Authorization: Bearer &lt;accessToken&gt;</code>) on every dispatch through <a href="file:///c:/Users/DELL/OneDrive/Documents/Lms_project/lms_complete_project/lms-backend/lms-backend/src/main/java/com/zenelait/lms/config/SecurityConfig.java">SecurityConfig</a>.
+      </p>
+      <p>
+        The backend employs database connection pools (HikariCP) to interact with relational schemas, ensuring fast transactional speeds during heavy academic logs updates, attendance submissions, and fee updates.
+      </p>
+      <ul>
+        <li><strong>Password storage:</strong> Encrypted using BCrypt (strength 10) in the service layer before writing.</li>
+        <li><strong>JWT Claims mapping:</strong> Custom filters map roles (<code>ROLE_ADMIN</code>, <code>ROLE_TEACHER</code>, <code>ROLE_STUDENT</code>, <code>ROLE_PARENT</code>, <code>ROLE_ULTRA_SUPER_ADMIN</code>) mapping controller security mappings.</li>
+      </ul>
+    </div>
+    
+    <div class="page-footer">
+      <div>Zenelait LMS Reference Manual</div>
+      <div class="page-num">Page 3 of 12</div>
+    </div>
+  </div>
+
+  <!-- PAGE 4: ROLE HIERARCHIES -->
+  <div class="page">
+    <div class="page-header">
+      <div>
+        <div class="logo-text">ZENELAIT</div>
+        <div class="logo-subtext">INFO TECH</div>
+      </div>
+    </div>
+    
+    <div class="content">
+      <h2 class="section-title">2. ROLE HIERARCHIES & DASHBOARD PERMISSIONS</h2>
+      <p>
+        The platform enforces strict authentication boundaries across 6 distinct user roles:
+      </p>
+      
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 25%;">Role</th>
+            <th style="width: 25%;">Database Flag Mapping</th>
+            <th style="width: 50%;">Operational Context Permissions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge badge-usa">Ultra Super Admin</span></td>
+            <td><code>ULTRA_SUPER_ADMIN</code></td>
+            <td>Full system owner. Manages organizations (tenants), global feature flags, subscription packages, and system-wide revenue forecasts.</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-sa">Super Admin</span></td>
+            <td><code>ADMIN</code> (<code>superAdmin = true</code>)</td>
+            <td>Academy owner. Manages organization-level admins, billing subscriptions, revenue reports, features, courses, and departments.</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-adm">Admin</span></td>
+            <td><code>ADMIN</code> (<code>superAdmin = false</code>)</td>
+            <td>Operational coordinator. Onboards teachers/students/parents, manages coursework catalogs, publishes announcements, logs fees.</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-tch">Teacher</span></td>
+            <td><code>TEACHER</code></td>
+            <td>Classroom executor. Publishes assignments, registers daily student attendance logs, evaluates and grades submissions.</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-stu">Student</span></td>
+            <td><code>STUDENT</code></td>
+            <td>Academic workspace. Submits assignments, requests course enrollments, prints verified course completion certificates.</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-par">Parent</span></td>
+            <td><code>PARENT</code></td>
+            <td>Academic auditor. Links children using student codes, audits grades/attendance, manages parent wallet for Razorpay payments.</td>
+          </tr>
+        </tbody>
+      </table>
+      
+      <h3 class="sub-section-title">Database Polymorphism Layout</h3>
+      <p>
+        Polymorphic role allocation is mapped using a single-table strategy in Hibernate (<code>users</code> table). User classes are loaded dynamically based on username/email credentials parsed by Spring Security filters.
+      </p>
+    </div>
+    
+    <div class="page-footer">
+      <div>Zenelait LMS Reference Manual</div>
+      <div class="page-num">Page 4 of 12</div>
+    </div>
+  </div>
+
+  <!-- PAGE 5: ULTRA SUPER ADMIN PORTAL -->
+  <div class="page">
+    <div class="page-header">
+      <div>
+        <div class="logo-text">ZENELAIT</div>
+        <div class="logo-subtext">INFO TECH</div>
+      </div>
+    </div>
+    
+    <div class="content">
+      <h2 class="section-title">3. ULTRA SUPER ADMIN DASHBOARD</h2>
+      <img class="screenshot" src="ultra%20super%20admin.png" alt="Ultra Super Admin Control Panel" />
+      
+      <h3 class="sub-section-title">Overview Page (Platform Dashboard)</h3>
+      <p>
+        Loads stats via <span class="api-route"><span class="api-badge api-get">GET</span>/api/ultra-super-admin/stats</span> mapping counts:
+      </p>
+      <ul>
+        <li><strong>Stats Cards:</strong> Total Organizations, Active Organizations, Total Super Admins, Total Registered Admins, Total Students, Teachers, and Parents system-wide.</li>
+        <li><strong>Quick Action buttons:</strong> 
+          <ul>
+            <li><em>Create Organization:</em> Launches organization modal.</li>
+            <li><em>Create Super Admin:</em> Launches super admin onboard modal.</li>
+            <li><em>View Users by Org:</em> Switches tab to organization directory.</li>
+          </ul>
+        </li>
+      </ul>
+      
+      <h3 class="sub-section-title">Organizations Management Page</h3>
+      <p>
+        Displays all onboarded academies in a detailed grid via <span class="api-route"><span class="api-badge api-get">GET</span>/api/ultra-super-admin/organizations</span>.
+      </p>
+      <ul>
+        <li><strong>Columns:</strong> Academy Name, Email, City, Organization Code, Active Plan, Active Status.</li>
+        <li><strong>Create Button:</strong> Launches creation dialog. Submits form inputs (Name, Email, Phone, Address, City, Country, Description) via <span class="api-route"><span class="api-badge api-post">POST</span>/api/ultra-super-admin/organizations</span>.</li>
+        <li><strong>Status Toggle button (Disable/Enable):</strong> Calls <span class="api-route"><span class="api-patch">PATCH</span>/api/ultra-super-admin/organizations/{id}/toggle-active</span> to instantly disable or enable all login routes and APIs for that academy's users.</li>
+      </ul>
+      
+      <h3 class="sub-section-title">Users by Org Management Directory</h3>
+      <p>
+        Permits the platform owner to inspect the operational directory inside any active tenant organization:
+      </p>
+      <ul>
+        <li><strong>Data Collection:</strong> Selecting an active organization triggers calls to:
+          <ul>
+            <li><span class="api-route"><span class="api-badge api-get">GET</span>/api/ultra-super-admin/organizations/{id}/students</span></li>
+            <li><span class="api-route"><span class="api-badge api-get">GET</span>/api/ultra-super-admin/organizations/{id}/teachers</span></li>
+            <li><span class="api-route"><span class="api-badge api-get">GET</span>/api/ultra-super-admin/organizations/{id}/parents</span></li>
+          </ul>
+        </li>
+        <li><strong>Information Display:</strong> Summarizes counts for Students, Teachers, and Parents. Displays lists containing: User Name, System Code/ID, Email, Phone, and Active Status flag.</li>
+      </ul>
+      
+      <h3 class="sub-section-title">Granular Feature Management & Revenue Cockpit</h3>
+      <ul>
+        <li><strong>Global System Features:</strong> Create and toggle platform modules globally using <span class="api-route"><span class="api-badge api-post">POST</span>/api/ultra-super-admin/features</span>.</li>
+        <li><strong>Tenant Configuration:</strong> Toggles specific global features for a selected organization via <span class="api-route"><span class="api-badge api-post">POST</span>/api/ultra-super-admin/organizations/{orgId}/features/{featureId}/toggle</span>.</li>
+        <li><strong>Revenue Cockpit:</strong> Fetches metrics via <span class="api-route"><span class="api-badge api-get">GET</span>/api/ultra-super-admin/revenue</span>. Displays MRR, ARR, and charts. Allows MoM target projections simulator slider adjustment.</li>
+      </ul>
+    </div>
+    
+    <div class="page-footer">
+      <div>Zenelait LMS Reference Manual</div>
+      <div class="page-num">Page 5 of 12</div>
+    </div>
+  </div>
+
+  <!-- PAGE 6: SUPER ADMIN PORTAL -->
+  <div class="page">
+    <div class="page-header">
+      <div>
+        <div class="logo-text">ZENELAIT</div>
+        <div class="logo-subtext">INFO TECH</div>
+      </div>
+    </div>
+    
+    <div class="content">
+      <h2 class="section-title">4. SUPER ADMIN PORTAL (ACADEMY OWNER)</h2>
+      <img class="screenshot" src="super%20admin.png" alt="Super Admin Dashboard Panel" />
+      
+      <h3 class="sub-section-title">Sidebar Pages & Navigation Mapping</h3>
+      <ul>
+        <li><strong>Admin Management tab:</strong> Accesses the local list of administrators. Featuring the <em>"+ Add Admin"</em> button, which registers regular administrators associated with their organization ID via <span class="api-route"><span class="api-badge api-post">POST</span>/api/admin/users</span>.
+          <ul>
+            <li><strong>Data Source:</strong> Loads list of local administrators via <span class="api-route"><span class="api-badge api-get">GET</span>/api/admin/users?role=ADMIN</span>.</li>
+            <li><strong>Actions:</strong> Delete button triggers <span class="api-route"><span class="api-badge api-delete">DELETE</span>/api/admin/users/{id}</span> to permanently delete admin accounts.</li>
+          </ul>
+        </li>
+        <li><strong>Subscription Status page:</strong> Views the active package details assigned by the Ultra Super Admin.
+          <ul>
+            <li><strong>Data Source:</strong> Fetches active plan parameters via <span class="api-route"><span class="api-badge api-get">GET</span>/api/admin/subscription</span>, indicating package name, price, start date, and expiration date.</li>
+            <li><strong>Expiring warning:</strong> Alerts the Super Admin on screen when the subscription is within 1 day of expiration. Includes a <em>"Renew Plan Now"</em> button which initiates subscription checkout via Razorpay payments.</li>
+          </ul>
+        </li>
+        <li><strong>Local Revenue Report page:</strong> Generates dynamic graphs mapping monthly tuition fee collections.
+          <ul>
+            <li><strong>Data Source:</strong> Pulls local transactional statistics via <span class="api-route"><span class="api-badge api-get">GET</span>/api/admin/revenue/summary</span>.</li>
+            <li><strong>Elements:</strong> Displays total fees collected, pending balances, and overall invoicing volumes alongside historical bar charts.</li>
+          </ul>
+        </li>
+      </ul>
+      
+      <h3 class="sub-section-title">Super Admin Exclusive Capabilities</h3>
+      <p>
+        The Super Admin role acts as the security manager of the academy. Regular Admins are blocked from seeing the Admins list, Subscription plans, and Local Revenue Reports by route-guard conditionals (e.g. <code>!isSuperAdmin</code> blocks page execution).
+      </p>
+    </div>
+    
+    <div class="page-footer">
+      <div>Zenelait LMS Reference Manual</div>
+      <div class="page-num">Page 6 of 12</div>
+    </div>
+  </div>
+
+  <!-- PAGE 7: ADMIN PORTAL - OPERATIONS -->
+  <div class="page">
+    <div class="page-header">
+      <div>
+        <div class="logo-text">ZENELAIT</div>
+        <div class="logo-subtext">INFO TECH</div>
+      </div>
+    </div>
+    
+    <div class="content">
+      <h2 class="section-title">5. ADMIN PORTAL (ACADEMIC OPERATIONS)</h2>
+      <img class="screenshot" src="admin.png" alt="Admin Control Console" />
+      
+      <h3 class="sub-section-title">Dashboard Pages & Controls</h3>
+      <ul>
+        <li><strong>Users Directories:</strong> Tabbed tables showing Teachers, Students, and Parents.
+          <ul>
+            <li><strong>Data Source:</strong> Fetch directories via:
+              <ul>
+                <li><span class="api-route"><span class="api-badge api-get">GET</span>/api/admin/users?role=STUDENT</span></li>
+                <li><span class="api-route"><span class="api-badge api-get">GET</span>/api/admin/users?role=TEACHER</span></li>
+                <li><span class="api-route"><span class="api-badge api-get">GET</span>/api/admin/users?role=PARENT</span></li>
+              </ul>
+            </li>
+            <li><strong>Deactivate / Activate toggle buttons:</strong> Calls <span class="api-route"><span class="api-badge api-patch">PATCH</span>/api/admin/users/{id}/activate</span> to toggle active status flag.</li>
+            <li><strong>Delete button (🗑):</strong> Triggers <span class="api-route"><span class="api-badge api-delete">DELETE</span>/api/admin/users/{id}</span> to permanently delete profiles.</li>
+            <li><strong>Add User button:</strong> Launches onboard modal. Admin registers profiles specifying Role, Name, Email, Password, Department, and Phone, submitting data via <span class="api-route"><span class="api-badge api-post">POST</span>/api/admin/users</span>.</li>
+          </ul>
+        </li>
+        <li><strong>Course Catalog management page:</strong> Lists academic subjects.
+          <ul>
+            <li><strong>Data Source:</strong> Fetches courses via <span class="api-route"><span class="api-badge api-get">GET</span>/api/admin/courses</span>.</li>
+            <li><strong>Create Course button:</strong> Launches modal. Submits title, department, duration hours, and teacherId via <span class="api-route"><span class="api-badge api-post">POST</span>/api/admin/courses</span>.</li>
+            <li><strong>Actions:</strong> Update parameters via <span class="api-route"><span class="api-badge api-put">PUT</span>/api/admin/courses/{id}</span> or delete subjects via <span class="api-route"><span class="api-badge api-delete">DELETE</span>/api/admin/courses/{id}</span>.</li>
+          </ul>
+        </li>
+        <li><strong>Batch Configurator page:</strong> Groups students into active cohorts.
+          <ul>
+            <li><strong>Data Source:</strong> Fetches cohorts via <span class="api-route"><span class="api-badge api-get">GET</span>/api/admin/batches</span>.</li>
+            <li><strong>Actions:</strong>
+              <ul>
+                <li>Create batches specifying startDate, endDate, and department via <span class="api-route"><span class="api-badge api-post">POST</span>/api/admin/batches</span>.</li>
+                <li>Assign courses to batches via <span class="api-route"><span class="api-badge api-post">POST</span>/api/admin/batches/{id}/courses</span>.</li>
+                <li>Link students to batches via <span class="api-route"><span class="api-badge api-post">POST</span>/api/admin/batches/{id}/students</span>.</li>
+              </ul>
+            </li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+    
+    <div class="page-footer">
+      <div>Zenelait LMS Reference Manual</div>
+      <div class="page-num">Page 7 of 12</div>
+    </div>
+  </div>
+
+  <!-- PAGE 8: ADMIN PORTAL - BILLING & SCHEDULING -->
+  <div class="page">
+    <div class="page-header">
+      <div>
+        <div class="logo-text">ZENELAIT</div>
+        <div class="logo-subtext">INFO TECH</div>
+      </div>
+    </div>
+    
+    <div class="content">
+      <h2 class="section-title">6. ADMIN PORTAL (TIMETABLES, FEES, AND SCHEDULING)</h2>
+      
+      <h3 class="sub-section-title">Timetable Scheduler Page</h3>
+      <p>
+        Coordinates weekly lecture slots and classroom room numbers.
+      </p>
+      <ul>
+        <li><strong>Data Source:</strong> Loads active timetable slots via <span class="api-route"><span class="api-badge api-get">GET</span>/api/admin/timetable</span>.</li>
+        <li><strong>Add Timetable Slot button:</strong> Launches scheduler modal. Selects Day of Week, Start Time, End Time, Room Number, Course ID, and Batch ID, posting parameters via <span class="api-route"><span class="api-badge api-post">POST</span>/api/admin/timetable</span>.</li>
+        <li><strong>Actions:</strong> Delete timetable slots via <span class="api-route"><span class="api-badge api-delete">DELETE</span>/api/admin/timetable/{slotId}</span>.</li>
+      </ul>
+      
+      <h3 class="sub-section-title">Fee Invoicing page</h3>
+      <p>
+        Generates individual and cohort tuition fee invoices.
+      </p>
+      <ul>
+        <li><strong>Data Source:</strong> Fetches invoice records via <span class="api-route"><span class="api-badge api-get">GET</span>/api/admin/fees</span>.</li>
+        <li><strong>Create Single Invoice:</strong> Input studentId, amount, dueDate, and description. Submits billing record via <span class="api-route"><span class="api-badge api-post">POST</span>/api/admin/fees</span>.</li>
+        <li><strong>Generate Batch-Wide Fee:</strong> Billing modal allows administrators to select a specific batch and apply flat fees to all enrolled students at once via <span class="api-route"><span class="api-badge api-post">POST</span>/api/admin/fees/batch-generate</span>.</li>
+        <li><strong>Action:</strong> Mark as paid manually (reconciled off-platform) via <span class="api-route"><span class="api-badge api-patch">PATCH</span>/api/admin/fees/{id}/mark-paid</span>.</li>
+      </ul>
+      
+      <h3 class="sub-section-title">Enrollment Requests Page</h3>
+      <p>
+        Handles incoming student registration requests.
+      </p>
+      <ul>
+        <li><strong>Data Source:</strong> Fetches active requests via <span class="api-route"><span class="api-badge api-get">GET</span>/api/admin/enrollments/requests</span>.</li>
+        <li><strong>Approve button:</strong> Approves enrollment requests, registering students into the course via <span class="api-route"><span class="api-badge api-post">POST</span>/api/admin/enrollments/requests/{id}/approve</span>.</li>
+        <li><strong>Reject button:</strong> Declines request, deleting it via <span class="api-route"><span class="api-badge api-post">POST</span>/api/admin/enrollments/requests/{id}/reject</span>.</li>
+      </ul>
+      
+      <h3 class="sub-section-title">Meetings & Announcements</h3>
+      <ul>
+        <li><strong>Meetings Scheduler:</strong> Admin schedules staff or classroom meetings (meeting link, topic, duration) via <span class="api-route"><span class="api-badge api-post">POST</span>/api/admin/meetings</span>.</li>
+        <li><strong>Announcements:</strong> Publishes notifications targeted by role via <span class="api-route"><span class="api-badge api-post">POST</span>/api/admin/announcements</span>.</li>
+      </ul>
+    </div>
+    
+    <div class="page-footer">
+      <div>Zenelait LMS Reference Manual</div>
+      <div class="page-num">Page 8 of 12</div>
+    </div>
+  </div>
+
+  <!-- PAGE 9: TEACHER PORTAL -->
+  <div class="page">
+    <div class="page-header">
+      <div>
+        <div class="logo-text">ZENELAIT</div>
+        <div class="logo-subtext">INFO TECH</div>
+      </div>
+    </div>
+    
+    <div class="content">
+      <h2 class="section-title">7. TEACHER PORTAL (ACADEMIC CONTROLS)</h2>
+      <img class="screenshot" src="teacher.png" alt="Teacher Portal View" />
+      
+      <h3 class="sub-section-title">Overview Page (Teacher Dashboard)</h3>
+      <p>
+        Loads stats via <span class="api-route"><span class="api-badge api-get">GET</span>/api/teacher/stats</span> mapping counts:
+      </p>
+      <ul>
+        <li><strong>Stats Cards:</strong> Total Assigned Courses, Active Batches, Daily Lecture Hours, and Pending Grades.</li>
+      </ul>
+      
+      <h3 class="sub-section-title">My Courses view</h3>
+      <p>
+        Fetches courses assigned to the teacher's profile via <span class="api-route"><span class="api-badge api-get">GET</span>/api/teacher/courses</span>.
+      </p>
+      
+      <h3 class="sub-section-title">Attendance Registry Page</h3>
+      <p>
+        Logs student daily class presence. Selecting a course and date retrieves the student enrollment list:
+      </p>
+      <ul>
+        <li><strong>Data Source:</strong> Fetch enrollment lists via <span class="api-route"><span class="api-badge api-get">GET</span>/api/teacher/attendance?courseId={id}&date={date}</span>.</li>
+        <li><strong>Log Attendance button:</strong> Select status (<code>PRESENT</code>, <code>ABSENT</code>, <code>LATE</code>) for each student. Clicking "Save Attendance" submits the list via <span class="api-route"><span class="api-badge api-post">POST</span>/api/teacher/attendance</span>.</li>
+      </ul>
+      
+      <h3 class="sub-section-title">Grading & Review Hub</h3>
+      <p>
+        Manages assignments coursework and student evaluations.
+      </p>
+      <ul>
+        <li><strong>Create Assignment:</strong> Add title, description, max marks, and due date. Publishes assignment to batch via <span class="api-route"><span class="api-badge api-post">POST</span>/api/teacher/assignments</span>.</li>
+        <li><strong>Submissions Queue:</strong> Lists student file uploads via <span class="api-route"><span class="api-badge api-get">GET</span>/api/teacher/submissions?courseId={id}</span>.</li>
+        <li><strong>Grade submission:</strong> Opens grading modal. Input marks and feedback comments. Submits results via <span class="api-route"><span class="api-badge api-patch">PATCH</span>/api/teacher/submissions/{id}/grade</span>.</li>
+      </ul>
+      
+      <h3 class="sub-section-title">Live Classes Management</h3>
+      <p>
+        Launches real-time virtual classroom sessions.
+      </p>
+      <ul>
+        <li><strong>Start Live Class button:</strong> Creates Zoom or Google Meet links. Calls <span class="api-route"><span class="api-badge api-post">POST</span>/api/teacher/meetings/launch</span>. This updates the student dashboard in real-time, flashing an alert header to prompt students to join.</li>
+        <li><strong>Close Meeting button:</strong> Ends session, clearing alerts. Calls <span class="api-route"><span class="api-badge api-patch">PATCH</span>/api/teacher/meetings/{id}/close</span>.</li>
+      </ul>
+    </div>
+    
+    <div class="page-footer">
+      <div>Zenelait LMS Reference Manual</div>
+      <div class="page-num">Page 9 of 12</div>
+    </div>
+  </div>
+
+  <!-- PAGE 10: STUDENT PORTAL -->
+  <div class="page">
+    <div class="page-header">
+      <div>
+        <div class="logo-text">ZENELAIT</div>
+        <div class="logo-subtext">INFO TECH</div>
+      </div>
+    </div>
+    
+    <div class="content">
+      <h2 class="section-title">8. STUDENT PORTAL (LEARNING WORKSPACE)</h2>
+      <img class="screenshot" src="student.png" alt="Student Dashboard Interface" />
+      
+      <h3 class="sub-section-title">Course Catalog & Enrollment requests</h3>
+      <ul>
+        <li><strong>Data Source:</strong> Loads available courses via <span class="api-route"><span class="api-badge api-get">GET</span>/api/student/courses/available</span>.</li>
+        <li><strong>Request Enrollment button:</strong> Submits registration request to the admin via <span class="api-route"><span class="api-badge api-post">POST</span>/api/student/courses/enroll?courseId={id}</span>.</li>
+      </ul>
+      
+      <h3 class="sub-section-title">Syllabus & Course Timelines Page</h3>
+      <ul>
+        <li><strong>Data Source:</strong> Loads lecture slides and class materials via <span class="api-route"><span class="api-badge api-get">GET</span>/api/student/courses/{id}/materials</span>.</li>
+      </ul>
+      
+      <h3 class="sub-section-title">Submissions Hub</h3>
+      <p>
+        Uploads homework files and responses.
+      </p>
+      <ul>
+        <li><strong>Data Source:</strong> Fetch pending assignments via <span class="api-route"><span class="api-badge api-get">GET</span>/api/student/assignments</span>.</li>
+        <li><strong>Submit Coursework button:</strong> Opens upload modal. Attaches files or inputs responses. Submits assignments via <span class="api-route"><span class="api-badge api-post">POST</span>/api/student/assignments/{id}/submit</span>.</li>
+      </ul>
+      
+      <h3 class="sub-section-title">Timed Assessments & Exam Monitor</h3>
+      <p>
+        Integrates a secure browser-monitored quiz interface.
+      </p>
+      <ul>
+        <li><strong>Start Assessment button:</strong> Fetches questions and starts exam timer via <span class="api-route"><span class="api-badge api-post">POST</span>/api/student/assessments/{id}/start</span>.</li>
+        <li><strong>Browser Blur Monitoring:</strong> The system monitors tab switching. Tabbing away triggers a warning. On the 3rd warning, the exam automatically submits itself to prevent cheating via <span class="api-route"><span class="api-badge api-post">POST</span>/api/student/assessments/attempts/{id}/submit</span>.</li>
+      </ul>
+      
+      <h3 class="sub-section-title">Completions & Certificates Drawer</h3>
+      <p>
+        Prints verified course completion certificates.
+      </p>
+      <ul>
+        <li><strong>Data Source:</strong> Loads completed courses via <span class="api-route"><span class="api-badge api-get">GET</span>/api/student/certificates</span>.</li>
+        <li><strong>Download Certificate button:</strong> Renders completion details into a PDF document using <code>html2canvas</code> and <code>jspdf</code> libraries, verifying authenticity using database-registered completion hashes.</li>
+      </ul>
+    </div>
+    
+    <div class="page-footer">
+      <div>Zenelait LMS Reference Manual</div>
+      <div class="page-num">Page 10 of 12</div>
+    </div>
+  </div>
+
+  <!-- PAGE 11: PARENT PORTAL -->
+  <div class="page">
+    <div class="page-header">
+      <div>
+        <div class="logo-text">ZENELAIT</div>
+        <div class="logo-subtext">INFO TECH</div>
+      </div>
+    </div>
+    
+    <div class="content">
+      <h2 class="section-title">9. PARENT PORTAL (CHILD AUDITING & WALLET)</h2>
+      <img class="screenshot" src="parent.png" alt="Parent Dashboard Panel" />
+      
+      <h3 class="sub-section-title">Children Linking Page</h3>
+      <p>
+        Parents register their child profiles to activate academic audits.
+      </p>
+      <ul>
+        <li><strong>Link Child button:</strong> Opens link dialog. Input unique student code (e.g. `STU-2026-001`). Submits linking request via <span class="api-route"><span class="api-badge api-post">POST</span>/api/parent/children/link</span>.</li>
+      </ul>
+      
+      <h3 class="sub-section-title">Academic Audits Page</h3>
+      <p>
+        Tracks children's grades, syllabus milestones, and attendance.
+      </p>
+      <ul>
+        <li><strong>Attendance logs:</strong> Gathers attendance histories via <span class="api-route"><span class="api-badge api-get">GET</span>/api/parent/children/{childId}/attendance</span>. Displays counts of present and absent classes alongside percentage statistics.</li>
+        <li><strong>Grade sheets:</strong> Gathers assignment grading records via <span class="api-route"><span class="api-badge api-get">GET</span>/api/parent/children/{childId}/grades</span>.</li>
+      </ul>
+      
+      <h3 class="sub-section-title">Tuition Fee Wallet & Payments</h3>
+      <p>
+        Integrated billing management.
+      </p>
+      <ul>
+        <li><strong>Data Source:</strong> Fetch outstanding tuition fees via <span class="api-route"><span class="api-badge api-get">GET</span>/api/parent/children/{childId}/fees</span>.</li>
+        <li><strong>Top Up Wallet button:</strong> Parents reload their wallet balance. Launches the Razorpay Payment Gateway modal. On success, wallet balances are updated via the Razorpay payment callback webhook.</li>
+        <li><strong>Settle Invoice button:</strong> Tapping "Settle Invoice" pays tuition bills. The system deducts the bill amount from the parent wallet ledger and marks the fee status as <code>PAID</code>.</li>
+      </ul>
+      
+      <h3 class="sub-section-title">Message Centre (Parent-Teacher Thread)</h3>
+      <p>
+        Provides direct messaging channels with educators.
+      </p>
+      <ul>
+        <li><strong>Search Teacher:</strong> Searches teachers by name or department. Clicking "Start Chat" opens a chat window using <span class="api-route"><span class="api-badge api-post">POST</span>/api/parent/messages/conversations</span>.</li>
+        <li><strong>Send Message button:</strong> Posts text messages via <span class="api-route"><span class="api-badge api-post">POST</span>/api/parent/messages/send</span>.</li>
+      </ul>
+    </div>
+    
+    <div class="page-footer">
+      <div>Zenelait LMS Reference Manual</div>
+      <div class="page-num">Page 11 of 12</div>
+    </div>
+  </div>
+
+  <!-- PAGE 12: AI PIPELINE -->
+  <div class="page">
+    <div class="page-header">
+      <div>
+        <div class="logo-text">ZENELAIT</div>
+        <div class="logo-subtext">INFO TECH</div>
+      </div>
+    </div>
+    
+    <div class="content">
+      <h2 class="section-title">10. AI ASSISTANT INTEGRATION (GEMINI PIPELINE)</h2>
+      <p>
+        Zenelait LMS features direct API integration with Google Gemini 2.5 Flash and Hugging Face Inference servers to provide contextual assistance based on active database records via <span class="api-route"><span class="api-badge api-post">POST</span>/api/ai/chat</span>.
+      </p>
+      
+      <h3 class="sub-section-title">Prompt Context Collection Pipeline</h3>
+      <p>
+        When a user initiates a query, the backend executes context collection algorithms based on their role:
+      </p>
+      
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 25%;">User Role</th>
+            <th style="width: 35%;">Database Mapped Context Gathers</th>
+            <th style="width: 40%;">LLM System Directive Prompt</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Student</strong></td>
+            <td>Class grades, assignment deadlines, attendance ratios, and course materials.</td>
+            <td>"Analyze this student's grade records and formulate personalized study suggestions and revision topics."</td>
+          </tr>
+          <tr>
+            <td><strong>Parent</strong></td>
+            <td>Linked children's performance, attendance statistics, and pending invoice dues.</td>
+            <td>"Review attendance rates and warn the parent of potential academic risks or upcoming due dates."</td>
+          </tr>
+          <tr>
+            <td><strong>Teacher</strong></td>
+            <td>Curriculum logs, course syllabus, student reviews, and submission marks.</td>
+            <td>"Assist the teacher in drafting evaluation criteria, template remarks, and syllabus goals."</td>
+          </tr>
+          <tr>
+            <td><strong>Admin</strong></td>
+            <td>Platform registrations, departments list, and active course catalogs.</td>
+            <td>"Provide administrative dashboard analytics and summarize overall enrollment metrics."</td>
+          </tr>
+        </tbody>
+      </table>
+      
+      <h3 class="sub-section-title">LLM API Forwarding Mechanism</h3>
+      <p>
+        The backend gathers contextual parameters, packages them alongside the user's message, and posts a payload to the Google Gemini API key configured in <a href="file:///c:/Users/DELL/OneDrive/Documents/Lms_project/lms_complete_project/lms-backend/lms-backend/src/main/resources/application.properties">application.properties</a>. The response is returned to the chat box on the client dashboard.
+      </p>
+    </div>
+    
+    <div class="page-footer">
+      <div>Zenelait LMS Reference Manual</div>
+      <div class="page-num">Page 12 of 12</div>
+    </div>
+  </div>
+
+</body>
+</html>
