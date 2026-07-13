@@ -3445,7 +3445,7 @@ const GradeSection = ({ course }) => {
                   const namePart = u.substring(u.lastIndexOf("/") + 1);
                   const cleanName = namePart.includes("_") ? namePart.substring(namePart.indexOf("_") + 1) : namePart;
                   // Handle absolute or relative URLs
-                  const fileLink = u.startsWith("/") ? `http://localhost:8080${u}` : u;
+                  const fileLink = u.startsWith("/") ? `${process.env.REACT_APP_API_BASE_URL || "http://localhost:8080"}${u}` : u;
                   return (
                     <a key={i} href={fileLink} target="_blank" rel="noreferrer"
                       style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, color: T.accent, fontSize: 13, textDecoration: "underline" }}

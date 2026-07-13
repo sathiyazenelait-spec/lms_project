@@ -30,7 +30,7 @@ import {
 // ── Public department fetch (no token needed) ─────────────────────────────────
 async function fetchDepartments() {
   try {
-    const res  = await fetch("http://localhost:8080/api/public/departments");
+    const res  = await fetch(`${process.env.REACT_APP_API_BASE_URL || "http://localhost:8080"}/api/public/departments`);
     const body = await res.json().catch(() => ({}));
     return Array.isArray(body.data) ? body.data : [];
   } catch { return []; }

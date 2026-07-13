@@ -145,7 +145,7 @@ export default function App() {
   useEffect(() => {
     if (auth?.organizationId) {
       setFeaturesLoaded(false);
-      fetch(`http://localhost:8080/api/public/organizations/${auth.organizationId}/features`)
+      fetch(`${process.env.REACT_APP_API_BASE_URL || "http://localhost:8080"}/api/public/organizations/${auth.organizationId}/features`)
         .then(res => res.json())
         .then(body => {
           if (body.success && Array.isArray(body.data)) {
