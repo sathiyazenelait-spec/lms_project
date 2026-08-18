@@ -25,6 +25,7 @@ public class PublicController {
     private final OrganizationRepository orgRepo;
     private final com.zenelait.lms.service.ultrasuperadmin.UltraSuperAdminService usaService;
     private final com.zenelait.lms.repository.UltraSuperAdminRepository ultraSuperAdminRepository;
+    private final com.zenelait.lms.service.demo.DemoService demoService;
 
     @GetMapping("/departments")
     public ResponseEntity<ApiResponse<List<Department>>> getActiveDepartments() {
@@ -124,6 +125,14 @@ public class PublicController {
         }
 
         return ResponseEntity.ok(ApiResponse.ok("Message received", responseData));
+    }
+
+    @PostMapping("/demo")
+    public ResponseEntity<ApiResponse<Organization>> startDemo(
+            @jakarta.validation.Valid @RequestBody com.zenelait.lms.dto.request.DemoRegisterRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                "Demo organization created successfully. You have 3 days free trial.",
+                demoService.createDemo(req)));
     }
 
     private String trim(Map<String, Object> body, String key) {

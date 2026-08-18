@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { T } from "../../assets/styles/theme";
 import { Btn, Badge, Avatar } from "../../components/UI";
-import { submitContactMessage, getOrganizations } from "../../api/auth";
+import { submitContactMessage, getOrganizations, startDemo } from "../../api/auth";
 
 // ─── TILT CARD COMPONENT FOR 360 MOVABLE MOUSE HOVER ───────────────────────────
 const TiltCard = ({ children, className, style = {}, ...props }) => {
@@ -194,7 +194,7 @@ const NAV_LINKS =
     // "Contact"
   ];
 
-const PublicNav = ({ current, onNavigate, onGoToLogin }) => {
+const PublicNav = ({ current, onNavigate, onGoToLogin, showDemoBtn, onStartDemo }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem("zenelait-theme") || "dark";
@@ -323,6 +323,37 @@ const PublicNav = ({ current, onNavigate, onGoToLogin }) => {
             {theme === "bright" ? "☀️" : "🌙"}
           </div>
 
+          {/* Start Demo Button */}
+          {showDemoBtn && (
+            <button
+              onClick={onStartDemo}
+              style={{
+                background: "transparent",
+                border: `2px solid ${T.accent}`,
+                color: T.accent,
+                padding: "8px 20px",
+                borderRadius: 50,
+                fontWeight: 800,
+                fontSize: 13,
+                cursor: "pointer",
+                marginRight: 12,
+                transition: "all 0.3s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = T.accent;
+                e.currentTarget.style.color = "#fff";
+                e.currentTarget.style.boxShadow = `0 4px 14px ${T.accent}40`;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "transparent";
+                e.currentTarget.style.color = T.accent;
+                e.currentTarget.style.boxShadow = "none";
+              }}
+            >
+              🎁 Start Demo
+            </button>
+          )}
+
           {/* Desktop Login Button */}
           <button
             className="desktop-login"
@@ -424,6 +455,27 @@ const PublicNav = ({ current, onNavigate, onGoToLogin }) => {
           >
             🚀 Login / Register
           </button>
+
+          {showDemoBtn && (
+            <button
+              onClick={() => {
+                onStartDemo();
+                setMenuOpen(false);
+              }}
+              style={{
+                marginTop: 8,
+                background: "transparent",
+                border: `2px solid ${T.accent}`,
+                color: T.accent,
+                padding: "10px",
+                borderRadius: 30,
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              🎁 Start 3-Day Demo
+            </button>
+          )}
         </div>
       )}
 
@@ -503,7 +555,7 @@ const PublicFooter = () => {
 };
 
 // ─── HOME PAGE ────────────────────────────────────────────────────────────────
-export const Home = ({ onLogin }) => (
+export const Home = ({ onLogin, showDemoBtn, onStartDemo }) => (
   <div className="animated-fade-in" style={{ position: "relative" }}>
     {/* HERO */}
     <section style={{ minHeight: "92vh", display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden", background: `radial-gradient(ellipse 80% 80% at 50% -10%, rgba(124,58,237,.22) 0%, transparent 75%), radial-gradient(ellipse 60% 60% at 85% 85%, rgba(6,182,212,.1) 0%, transparent 60%)` }}>
@@ -527,6 +579,9 @@ export const Home = ({ onLogin }) => (
 
         <div style={{ display: "flex", gap: 18, justifyContent: "center", flexWrap: "wrap" }}>
           <Btn variant="primary" size="xl" onClick={onLogin} style={{ transform: "scale(1)", transition: "transform .2s" }} onMouseEnter={e => e.currentTarget.style.transform = "scale(1.05)"} onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}>Get Started →</Btn>
+          {showDemoBtn && (
+            <Btn onClick={onStartDemo} style={{ transform: "scale(1)", transition: "transform .2s", background: `linear-gradient(135deg, ${T.accent}, ${T.primaryL})`, border: "none", color: "#fff" }} onMouseEnter={e => e.currentTarget.style.transform = "scale(1.05)"} onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}>Start Free Demo 🚀</Btn>
+          )}
           <Btn variant="ghost" size="xl" style={{ transform: "scale(1)", transition: "transform .2s" }} onMouseEnter={e => e.currentTarget.style.transform = "scale(1.05)"} onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}>Watch Demo ▶</Btn>
         </div>
 
@@ -1306,15 +1361,35 @@ const PAGE_COMPONENTS = { home: Home, about: About, academics: Academics, achiev
 const PublicWebsite = ({ onGoToLogin }) => {
   const [pubPage, setPubPage] = useState("home");
   const [showContactDrawer, setShowContactDrawer] = useState(false);
+  const [showDemoModal, setShowDemoModal] = useState(false);
+  const [showDemoBtn, setShowDemoBtn] = useState(true);
+
+  useEffect(() => {
+    const demoCreated = localStorage.getItem("lms_demo_created");
+    if (demoCreated === "true") {
+      setShowDemoBtn(false);
+    }
+  }, []);
+
   const PageComp = PAGE_COMPONENTS[pubPage] || Home;
 
   return (
     <div style={{ background: T.bg, color: T.text, minHeight: "100vh", position: "relative", overflowX: "hidden" }}>
-      <PublicNav current={pubPage} onNavigate={setPubPage} onGoToLogin={onGoToLogin} />
+      <PublicNav current={pubPage} onNavigate={setPubPage} onGoToLogin={onGoToLogin} showDemoBtn={showDemoBtn} onStartDemo={() => setShowDemoModal(true)} />
       <div style={{ paddingTop: 70 }}>
-        <PageComp onLogin={onGoToLogin} />
+        <PageComp onLogin={onGoToLogin} showDemoBtn={showDemoBtn} onStartDemo={() => setShowDemoModal(true)} />
       </div>
       <PublicFooter />
+
+      <DemoModal
+        isOpen={showDemoModal}
+        onClose={() => setShowDemoModal(false)}
+        onSuccess={() => {
+          setShowDemoBtn(false);
+          localStorage.setItem("lms_demo_created", "true");
+          onGoToLogin();
+        }}
+      />
 
       {/* Floating Highlight Contact Button */}
       {pubPage === "home" && (
@@ -1612,6 +1687,327 @@ const PublicWebsite = ({ onGoToLogin }) => {
           animation-play-state: paused;
         }
       `}</style>
+    </div>
+  );
+};
+
+// ─── DEMO MODAL OVERLAY ───────────────────────────────────────────────────────
+const DemoModal = ({ isOpen, onClose, onSuccess }) => {
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [successInfo, setSuccessInfo] = useState(null);
+  const [form, setForm] = useState({
+    orgName: "",
+    orgEmail: "",
+    orgPhone: "",
+    orgAddress: "",
+    orgCity: "",
+    orgCountry: "",
+    orgDescription: "",
+    adminName: "",
+    adminEmail: "",
+    adminPassword: "",
+    adminGender: "Male",
+    adminPhone: "",
+  });
+
+  const f = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
+
+  const validate = () => {
+    const e = {};
+    if (!form.orgName.trim()) e.orgName = "Organization name is required";
+    if (!form.orgEmail.trim()) e.orgEmail = "Organization email is required";
+    else if (!form.orgEmail.includes("@")) e.orgEmail = "Enter a valid email address";
+    
+    if (!form.adminName.trim()) e.adminName = "Admin name is required";
+    if (!form.adminEmail.trim()) e.adminEmail = "Admin email is required";
+    else if (!form.adminEmail.includes("@")) e.adminEmail = "Enter a valid email address";
+    
+    if (!form.adminPassword.trim()) e.adminPassword = "Password is required";
+    else if (form.adminPassword.length < 8) e.adminPassword = "Password must be at least 8 characters";
+
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handleSubmit = async () => {
+    if (!validate()) return;
+    try {
+      setLoading(true);
+      await startDemo(form);
+      setSuccessInfo({ email: form.adminEmail, password: form.adminPassword });
+    } catch (err) {
+      alert("Failed to start demo: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  const inputStyle = (field) => ({
+    width: "100%",
+    background: T.bg3,
+    border: `1.5px solid ${errors[field] ? "#ef4444" : T.border}`,
+    borderRadius: 10,
+    padding: "10px 14px",
+    fontSize: 13,
+    color: T.text,
+    outline: "none",
+    fontFamily: "DM Sans",
+    boxSizing: "border-box",
+    transition: "border-color 0.3s ease"
+  });
+
+  const labelStyle = {
+    display: "block",
+    fontSize: 12,
+    fontWeight: 700,
+    color: T.text,
+    marginBottom: 6,
+    textTransform: "uppercase",
+    letterSpacing: "0.5px"
+  };
+
+  const errTxt = (field) =>
+    errors[field] ? (
+      <div style={{ fontSize: 11, color: "#ef4444", marginTop: 4, fontWeight: 600 }}>
+        {errors[field]}
+      </div>
+    ) : null;
+
+  if (successInfo) {
+    return (
+      <div style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(6, 4, 15, 0.75)",
+        backdropFilter: "blur(8px)",
+        zIndex: 3000,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 24,
+      }}>
+        <div style={{
+          background: "rgba(10, 8, 22, 0.98)",
+          border: `1px solid ${T.border}`,
+          borderRadius: 20,
+          boxShadow: "0 20px 80px rgba(0,0,0,0.8)",
+          width: "100%",
+          maxWidth: 480,
+          padding: 32,
+          textAlign: "center",
+        }}>
+          <div style={{ fontSize: 50, color: T.accentG, marginBottom: 16 }}>🎉</div>
+          <h3 style={{ fontFamily: "Syne", fontSize: 22, fontWeight: 900, color: "#fff", margin: "0 0 10px" }}>Demo Launched!</h3>
+          <p style={{ fontSize: 13.5, color: T.muted, lineHeight: 1.6, margin: "0 0 24px" }}>
+            Your 3-day temporary organization has been successfully initialized. Keep these login details to access your dashboard.
+          </p>
+
+          <div style={{
+            background: T.bg3,
+            border: `1px solid ${T.border}`,
+            borderRadius: 12,
+            padding: 18,
+            textAlign: "left",
+            marginBottom: 28,
+            display: "flex",
+            flexDirection: "column",
+            gap: 10
+          }}>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 800, color: T.accent, textTransform: "uppercase" }}>Login Portal Link</div>
+              <div style={{ fontSize: 13, color: "#fff", fontWeight: 600 }}>Standard User Login</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 800, color: T.accent, textTransform: "uppercase" }}>Admin Email</div>
+              <div style={{ fontSize: 13, color: "#fff", fontWeight: 600, wordBreak: "break-all" }}>{successInfo.email}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 800, color: T.accent, textTransform: "uppercase" }}>Password</div>
+              <div style={{ fontSize: 13, color: "#fff", fontWeight: 600 }}>{successInfo.password}</div>
+            </div>
+          </div>
+
+          <Btn full onClick={() => {
+            onClose();
+            onSuccess();
+          }}>
+            Go to Login Page →
+          </Btn>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      position: "fixed",
+      inset: 0,
+      background: "rgba(6, 4, 15, 0.75)",
+      backdropFilter: "blur(8px)",
+      zIndex: 3000,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 24,
+    }}>
+      <div style={{
+        background: "rgba(10, 8, 22, 0.98)",
+        border: `1px solid ${T.border}`,
+        borderRadius: 20,
+        boxShadow: "0 20px 80px rgba(0,0,0,0.8)",
+        width: "100%",
+        maxWidth: 780,
+        maxHeight: "90vh",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+      }}>
+        {/* Header */}
+        <div style={{
+          padding: "20px 30px",
+          borderBottom: `1px solid ${T.border}`,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center"
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 24 }}>🚀</span>
+            <div style={{ textAlign: "left" }}>
+              <h3 style={{ fontFamily: "Syne", fontSize: 18, fontWeight: 900, color: "#fff", margin: 0 }}>Start Your 3-Day Free Demo</h3>
+              <p style={{ fontSize: 12, color: T.muted, margin: "2px 0 0" }}>Experience complete administrative autonomy with Zenelait LMS</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: "rgba(255,255,255,.05)",
+              border: `1px solid ${T.border}`,
+              color: T.muted,
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              cursor: "pointer",
+              fontSize: 16,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              transition: "all 0.2s"
+            }}
+            onMouseEnter={e => e.currentTarget.style.color = "#fff"}
+            onMouseLeave={e => e.currentTarget.style.color = T.muted}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Scrollable Form Body */}
+        <div style={{ padding: 30, overflowY: "auto", display: "flex", flexDirection: "column", gap: 24, textAlign: "left" }}>
+          
+          {/* Section 1: Org details */}
+          <div>
+            <h4 style={{ fontFamily: "Syne", fontSize: 14, fontWeight: 800, color: T.accent, margin: "0 0 16px", textTransform: "uppercase" }}>1. Organization Information</h4>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <div className="field">
+                <label style={labelStyle}>Org Name *</label>
+                <input value={form.orgName} onChange={f("orgName")} placeholder="Zen Academy" style={inputStyle("orgName")} />
+                {errTxt("orgName")}
+              </div>
+              <div className="field">
+                <label style={labelStyle}>Org Email *</label>
+                <input type="email" value={form.orgEmail} onChange={f("orgEmail")} placeholder="contact@zenacademy.com" style={inputStyle("orgEmail")} />
+                {errTxt("orgEmail")}
+              </div>
+              <div className="field">
+                <label style={labelStyle}>Phone Number</label>
+                <input value={form.orgPhone} onChange={f("orgPhone")} placeholder="+91 98765 43210" style={inputStyle("orgPhone")} />
+              </div>
+              <div className="field">
+                <label style={labelStyle}>Address</label>
+                <input value={form.orgAddress} onChange={f("orgAddress")} placeholder="123 Education St" style={inputStyle("orgAddress")} />
+              </div>
+              <div className="field">
+                <label style={labelStyle}>City</label>
+                <input value={form.orgCity} onChange={f("orgCity")} placeholder="Chennai" style={inputStyle("orgCity")} />
+              </div>
+              <div className="field">
+                <label style={labelStyle}>Country</label>
+                <input value={form.orgCountry} onChange={f("orgCountry")} placeholder="India" style={inputStyle("orgCountry")} />
+              </div>
+            </div>
+            <div className="field" style={{ marginTop: 16 }}>
+              <label style={labelStyle}>Description</label>
+              <textarea rows={2} value={form.orgDescription} onChange={f("orgDescription")} placeholder="A brief description of your academy..." style={{ ...inputStyle("orgDescription"), resize: "vertical" }} />
+            </div>
+          </div>
+
+          <hr style={{ border: "none", borderTop: `1px solid ${T.border}`, margin: 0 }} />
+
+          {/* Section 2: Admin details */}
+          <div>
+            <h4 style={{ fontFamily: "Syne", fontSize: 14, fontWeight: 800, color: T.accent, margin: "0 0 16px", textTransform: "uppercase" }}>2. Super Admin Credentials</h4>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <div className="field">
+                <label style={labelStyle}>Admin Name *</label>
+                <input value={form.adminName} onChange={f("adminName")} placeholder="John Doe" style={inputStyle("adminName")} />
+                {errTxt("adminName")}
+              </div>
+              <div className="field">
+                <label style={labelStyle}>Admin Email *</label>
+                <input type="email" value={form.adminEmail} onChange={f("adminEmail")} placeholder="john@zenacademy.com" style={inputStyle("adminEmail")} />
+                {errTxt("adminEmail")}
+              </div>
+              <div className="field">
+                <label style={labelStyle}>Password *</label>
+                <input type="password" value={form.adminPassword} onChange={f("adminPassword")} placeholder="•••••••• (Min 8 chars)" style={inputStyle("adminPassword")} />
+                {errTxt("adminPassword")}
+              </div>
+              <div className="field">
+                <label style={labelStyle}>Gender</label>
+                <select value={form.adminGender} onChange={f("adminGender")} style={inputStyle("adminGender")}>
+                  <option value="Male" style={{ background: T.bg3, color: T.text }}>Male</option>
+                  <option value="Female" style={{ background: T.bg3, color: T.text }}>Female</option>
+                  <option value="Other" style={{ background: T.bg3, color: T.text }}>Other</option>
+                </select>
+              </div>
+              <div className="field">
+                <label style={labelStyle}>Admin Phone</label>
+                <input value={form.adminPhone} onChange={f("adminPhone")} placeholder="+91 99999 88888" style={inputStyle("adminPhone")} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer Actions */}
+        <div style={{
+          padding: "20px 30px",
+          borderTop: `1px solid ${T.border}`,
+          display: "flex",
+          justifyContent: "flex-end",
+          gap: 12
+        }}>
+          <button
+            onClick={onClose}
+            style={{
+              background: "transparent",
+              border: `1px solid ${T.border}`,
+              color: T.text,
+              padding: "10px 20px",
+              borderRadius: 8,
+              cursor: "pointer",
+              fontSize: 13,
+              fontWeight: 700
+            }}
+          >
+            Cancel
+          </button>
+          <Btn onClick={handleSubmit} disabled={loading} style={{ minWidth: 150 }}>
+            {loading ? "Initializing Demo..." : "Launch Demo →"}
+          </Btn>
+        </div>
+      </div>
     </div>
   );
 };

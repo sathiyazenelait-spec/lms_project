@@ -115,6 +115,13 @@ export async function getOrganizations() {
   return Array.isArray(body.data) ? body.data : [];
 }
 
+export async function startDemo(payload) {
+  return request("/public/demo", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 // ── Admin ─────────────────────────────────────────────────────────────────────
 export async function getAdminStats()             { return request("/admin/stats"); }
 export async function getAdminProfile()           { return request("/admin/profile"); }

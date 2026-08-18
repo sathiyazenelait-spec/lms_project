@@ -63,6 +63,13 @@ public class Organization {
 	    @Builder.Default
 	    private boolean active = true;
 
+	    @Column(name = "is_demo", nullable = false)
+	    @Builder.Default
+	    private boolean isDemo = false;
+
+	    @Column(name = "demo_end_date")
+	    private LocalDateTime demoEndDate;
+
 	    @Column(nullable = false, updatable = false)
 	    private LocalDateTime createdAt;
 

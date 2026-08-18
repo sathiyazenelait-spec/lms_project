@@ -16,6 +16,8 @@ public interface OrganizationRepository extends JpaRepository<Organization, Long
     Optional<Organization> findByName(String name);
     List<Organization> findByActiveTrue();
 
+    List<Organization> findByIsDemoTrueAndDemoEndDateBefore(java.time.LocalDateTime dateTime);
+
     @Query("SELECT o.orgCode FROM Organization o WHERE o.orgCode LIKE :prefix% ORDER BY o.orgCode DESC LIMIT 1")
     Optional<String> findLastOrgCodeByPrefix(@Param("prefix") String prefix);
 }
