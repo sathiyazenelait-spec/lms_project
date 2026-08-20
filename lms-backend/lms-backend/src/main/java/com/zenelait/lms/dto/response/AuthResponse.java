@@ -20,6 +20,7 @@ public class AuthResponse {
     private String role;       // "STUDENT" | "TEACHER" | "PARENT" | "ADMIN"
     private Long   organizationId;
     private Boolean superAdmin;
+    private Boolean trialExpired;
     // Email delivery warnings — null/empty = all emails sent OK
     // Populated only on registration; frontend shows popup if non-empty
     private List<String> emailWarnings;

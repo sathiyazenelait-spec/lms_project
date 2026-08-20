@@ -83,6 +83,12 @@ public class SubscriptionService {
             throw new BadRequestException("Cannot subscribe to an inactive package.");
         }
 
+        if (org.isDemo()) {
+            org.setDemo(false);
+            org.setDemoEndDate(null);
+            organizationRepository.save(org);
+        }
+
         // Calculate end date based on package duration
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime endDate = now.plusDays(pkg.getDurationDays());

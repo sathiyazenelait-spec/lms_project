@@ -88,6 +88,7 @@ export const SIDEBARS = {
     { key: "overview",       icon: "📊",  label: "Dashboard"          },
     { key: "profile",        icon: "👤",  label: "My Profile"         },
     { key: "subscription",   icon: "💎",  label: "Subscription Plan"  },
+    { key: "password_resets", icon: "🔑",  label: "Password Resets"    },
     { section: "System Control" },
     { key: "users",          icon: "👥",  label: "Manage Users"       },
     { key: "departments",    icon: "🏢",  label: "Departments"        },
@@ -228,6 +229,9 @@ export const Sidebar = ({ role, active, onNav, onLogout, isMobile, open, setOpen
       currentSection = item;
     } else {
       if (item.key === "subscription" && !isSuperAdmin) {
+        return;
+      }
+      if (item.key === "password_resets" && !isSuperAdmin) {
         return;
       }
       if (item.key === "revenue" && !isSuperAdmin) {

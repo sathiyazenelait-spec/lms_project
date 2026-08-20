@@ -87,20 +87,13 @@ public class DemoService {
 
     @Scheduled(fixedDelay = 1800000) // Run every 30 minutes
     public void cleanupExpiredDemos() {
-        log.info("Running scheduled cleanup for expired demo organizations...");
+        log.info("Running scheduled cleanup check for expired demo organizations...");
         List<Organization> expired = orgRepository.findByIsDemoTrueAndDemoEndDateBefore(LocalDateTime.now());
         if (expired.isEmpty()) {
             log.info("No expired demo organizations found.");
             return;
         }
-
-        for (Organization org : expired) {
-            try {
-                deleteDemoOrganization(org.getId(), org.getName());
-            } catch (Exception e) {
-                log.error("Failed to delete expired demo organization ID: " + org.getId(), e);
-            }
-        }
+        log.info("Found {} expired demo organizations. Skipping physical deletion as per package conversion policy.", expired.size());
     }
 
     @Transactional

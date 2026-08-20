@@ -89,6 +89,10 @@ public class ParentAuthService {
             throw new BadRequestException("Your parent account has been deactivated.");
         }
 
+        if (isTrialExpired(parent)) {
+            throw new BadRequestException("Your organization's trial has expired. Please contact your administrator.");
+        }
+
         if (!passwordEncoder.matches(req.getPassword(), parent.getPassword())) {
             throw new BadRequestException("Invalid credentials. Wrong password.");
         }
@@ -106,6 +110,10 @@ public class ParentAuthService {
             throw new BadRequestException("Refresh token expired or invalid");
         }
 
+        if (isTrialExpired(parent)) {
+            throw new BadRequestException("Your organization's trial has expired. Please contact your administrator.");
+        }
+
         return AuthResponse.builder()
                 .accessToken(jwtUtils.generateToken(parent))
                 .refreshToken(refreshToken)
@@ -120,6 +128,12 @@ public class ParentAuthService {
     }
 
     // ── Helpers ───────────────────────────────────────────────────────
+    private boolean isTrialExpired(Parent parent) {
+        if (parent.getOrganizationId() == null) return false;
+        Organization org = orgRepo.findById(parent.getOrganizationId()).orElse(null);
+        return org != null && org.isDemo() && org.getDemoEndDate() != null && org.getDemoEndDate().isBefore(java.time.LocalDateTime.now());
+    }
+
     private AuthResponse buildResponse(Parent parent) {
         return AuthResponse.builder()
                 .accessToken(jwtUtils.generateToken(parent))

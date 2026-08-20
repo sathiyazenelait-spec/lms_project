@@ -4,9 +4,11 @@ import com.zenelait.lms.dto.request.AdminRegisterRequest;
 import com.zenelait.lms.dto.request.LoginRequest;
 import com.zenelait.lms.dto.response.AuthResponse;
 import com.zenelait.lms.entity.Admin;
+import com.zenelait.lms.entity.Organization;
 import com.zenelait.lms.exception.BadRequestException;
 import com.zenelait.lms.repository.AdminRepository;
 import com.zenelait.lms.repository.DepartmentRepository;
+import com.zenelait.lms.repository.OrganizationRepository;
 import com.zenelait.lms.security.JwtUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -23,6 +25,7 @@ public class AdminAuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtils jwtUtils;
     private final DepartmentRepository   departmentRepository;
+    private final OrganizationRepository organizationRepository;
 
     private final AtomicLong counter = new AtomicLong(1);
 
@@ -72,8 +75,10 @@ public class AdminAuthService {
         if (!admin.isActive()) {
             throw new BadRequestException("Your admin account has been deactivated.");
         }
-        
-        
+
+        if (isTrialExpired(admin) && !admin.isSuperAdmin()) {
+            throw new BadRequestException("Your organization's trial has expired. Please contact your administrator.");
+        }
 
         if (!passwordEncoder.matches(req.getPassword(), admin.getPassword())) {
             throw new BadRequestException("Invalid credentials. Wrong password.");
@@ -92,6 +97,10 @@ public class AdminAuthService {
             throw new BadRequestException("Refresh token expired or invalid");
         }
 
+        if (isTrialExpired(admin) && !admin.isSuperAdmin()) {
+            throw new BadRequestException("Your organization's trial has expired. Please contact your administrator.");
+        }
+
         return AuthResponse.builder()
                 .accessToken(jwtUtils.generateToken(admin))
                 .refreshToken(refreshToken)
@@ -103,10 +112,17 @@ public class AdminAuthService {
                 .role("ADMIN")
                 .organizationId(admin.getOrganizationId())
                 .superAdmin(admin.isSuperAdmin())
+                .trialExpired(isTrialExpired(admin))
                 .build();
     }
 
     // ── Helpers ───────────────────────────────────────────────────────
+    private boolean isTrialExpired(Admin admin) {
+        if (admin.getOrganizationId() == null) return false;
+        Organization org = organizationRepository.findById(admin.getOrganizationId()).orElse(null);
+        return org != null && org.isDemo() && org.getDemoEndDate() != null && org.getDemoEndDate().isBefore(java.time.LocalDateTime.now());
+    }
+
     private AuthResponse buildResponse(Admin admin) {
         return AuthResponse.builder()
                 .accessToken(jwtUtils.generateToken(admin))
@@ -119,6 +135,7 @@ public class AdminAuthService {
                 .role("ADMIN")
                 .organizationId(admin.getOrganizationId())
                 .superAdmin(admin.isSuperAdmin())
+                .trialExpired(isTrialExpired(admin))
                 .build();
     }
 

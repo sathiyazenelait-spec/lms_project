@@ -90,6 +90,10 @@ public class StudentAuthService {
             throw new BadRequestException("Your student account has been deactivated.");
         }
 
+        if (isTrialExpired(student)) {
+            throw new BadRequestException("Your organization's trial has expired. Please contact your administrator.");
+        }
+
         if (!passwordEncoder.matches(req.getPassword(), student.getPassword())) {
             throw new BadRequestException("Invalid credentials. Wrong password.");
         }
@@ -107,6 +111,10 @@ public class StudentAuthService {
             throw new BadRequestException("Refresh token expired or invalid");
         }
 
+        if (isTrialExpired(student)) {
+            throw new BadRequestException("Your organization's trial has expired. Please contact your administrator.");
+        }
+
         return AuthResponse.builder()
                 .accessToken(jwtUtils.generateToken(student))
                 .refreshToken(refreshToken)
@@ -121,6 +129,12 @@ public class StudentAuthService {
     }
 
     // ── Helpers ───────────────────────────────────────────────────────
+    private boolean isTrialExpired(Student student) {
+        if (student.getOrganizationId() == null) return false;
+        Organization org = organizationRepository.findById(student.getOrganizationId()).orElse(null);
+        return org != null && org.isDemo() && org.getDemoEndDate() != null && org.getDemoEndDate().isBefore(java.time.LocalDateTime.now());
+    }
+
     private AuthResponse buildResponse(Student student) {
         return AuthResponse.builder()
                 .accessToken(jwtUtils.generateToken(student))

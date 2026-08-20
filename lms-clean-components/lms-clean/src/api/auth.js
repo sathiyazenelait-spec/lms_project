@@ -715,4 +715,24 @@ export async function downloadMonthlyAttendancePdf(courseId, month) {
   a.click();
   a.remove();
 }
+
+// ── Password Reset Approvals ─────────────────────────────────────────────────
+export async function adminGetPasswordResets() {
+  return request("/admin/password-reset-requests");
+}
+export async function adminApprovePasswordReset(id) {
+  return request(`/admin/password-reset-requests/${id}/approve`, { method: "POST" });
+}
+export async function adminRejectPasswordReset(id) {
+  return request(`/admin/password-reset-requests/${id}/reject`, { method: "POST" });
+}
+export async function usaGetPasswordResets() {
+  return request("/ultra-super-admin/password-reset-requests");
+}
+export async function usaApprovePasswordReset(id) {
+  return request(`/ultra-super-admin/password-reset-requests/${id}/approve`, { method: "POST" });
+}
+export async function usaRejectPasswordReset(id) {
+  return request(`/ultra-super-admin/password-reset-requests/${id}/reject`, { method: "POST" });
+}
 

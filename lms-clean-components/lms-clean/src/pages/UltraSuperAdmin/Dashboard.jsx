@@ -12,7 +12,8 @@ import {
   usaDeletePackage, usaGetSubscriptions, usaAssignSubscription,
   usaGetRevenueAnalysis, usaGetNotifications, usaMarkNotifRead,
   usaMarkAllNotifsRead, usaTriggerExpiryCheck, usaSendRenewalReminder,
-  usaGetContactMessages, usaUpdateContactStatus, usaDeleteContactMessage
+  usaGetContactMessages, usaUpdateContactStatus, usaDeleteContactMessage,
+  usaGetPasswordResets, usaApprovePasswordReset, usaRejectPasswordReset
 } from "../../api/auth";
 
 const C = { gold:"#F59E0B", red:"#EF4444", green:"#10B981", blue:"#06B6D4", purple:"#7C3AED" };
@@ -224,6 +225,21 @@ export default function UltraSuperAdminDashboard({ auth, onLogout }) {
   const [triggeringCheck, setTriggeringCheck] = useState(false);
   const [remindingSubId, setRemindingSubId] = useState(null);
 
+  const [passwordResets, setPasswordResets] = useState([]);
+  const [resetsLoading, setResetsLoading] = useState(false);
+
+  const loadResets = useCallback(async () => {
+    setResetsLoading(true);
+    try {
+      const data = await usaGetPasswordResets();
+      setPasswordResets(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Failed to load password resets", err);
+    } finally {
+      setResetsLoading(false);
+    }
+  }, []);
+
   // USA Contact Queries State
   const [queries, setQueries] = useState([]);
   const [queriesLoading, setQueriesLoading] = useState(false);
@@ -353,8 +369,12 @@ export default function UltraSuperAdminDashboard({ auth, onLogout }) {
 
   useEffect(() => {
     loadStats(); loadOrgs(); loadAdmins(); loadFeatures(); loadPackages(); loadSubscriptions();
-    loadNotifications(); loadRevenueAnalysis(); loadContactQueries();
+    loadNotifications(); loadRevenueAnalysis(); loadContactQueries(); loadResets();
   }, []);
+
+  useEffect(() => {
+    if (tab === "resets") loadResets();
+  }, [tab, loadResets]);
 
   useEffect(() => {
     loadContactQueries();
@@ -556,6 +576,7 @@ export default function UltraSuperAdminDashboard({ auth, onLogout }) {
     { key:"revenue",     icon:"💵", label:"Revenue Analysis" },
     { key:"renewals",    icon:"🔔", label:"Renewal Alerts" },
     { key:"queries",     icon:"💬", label:"Contact Queries" },
+    { key:"resets",      icon:"🔑", label:"Password Resets" },
   ];
 
   const activeOrgs   = orgs.filter(o => o.active).length;
@@ -1406,6 +1427,61 @@ export default function UltraSuperAdminDashboard({ auth, onLogout }) {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {tab === "resets" && (
+          <div style={{ animation:"usaFadeUp .35s ease" }}>
+            <div style={{ marginBottom: 20 }}>
+              <h2 style={{ fontFamily: "Syne", fontSize: 21, fontWeight: 900, color: "#fff", margin: "0 0 4px" }}>Password Reset Requests</h2>
+              <p style={{ color: T.muted, fontSize: 13, margin: 0 }}>Pending approvals for Super Admin password resets</p>
+            </div>
+            <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden" }}>
+              <div style={{ overflowX: "auto" }}>
+                <div style={{ minWidth: 600 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 120px", padding: "10px 16px", borderBottom: `1px solid ${T.border}`, fontSize: 11, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: .5 }}>
+                    <span>Email</span><span>Role</span><span>Submitted At</span><span style={{ textAlign: "right" }}>Actions</span>
+                  </div>
+                  {resetsLoading ? (
+                    <div style={{ padding: 24, textAlign: "center", color: T.muted, fontSize: 13 }}>Loading requests...</div>
+                  ) : passwordResets.length === 0 ? (
+                    <div style={{ padding: 24, textAlign: "center", color: T.muted, fontSize: 13 }}>No pending requests.</div>
+                  ) : (
+                    passwordResets.map((r, i) => (
+                      <div key={r.id} className="usa-row" style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 120px", padding: "12px 16px", alignItems: "center", borderBottom: i < passwordResets.length - 1 ? `1px solid ${T.border}` : "none" }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "#fff" }}>{r.email}</div>
+                        <div><Chip color={C.gold}>{r.role}</Chip></div>
+                        <div style={{ fontSize: 12, color: T.muted }}>{new Date(r.createdAt).toLocaleString()}</div>
+                        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                          <button onClick={async () => {
+                            if (window.confirm("Approve password reset request?")) {
+                              try {
+                                await usaApprovePasswordReset(r.id);
+                                alert("Approved. OTP sent to user email.");
+                                loadResets();
+                              } catch (err) {
+                                alert("Error: " + err.message);
+                              }
+                            }
+                          }} style={{ background: "rgba(16,185,129,.1)", border: "1px solid rgba(16,185,129,.3)", color: C.green, padding: "4px 8px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>Approve</button>
+                          <button onClick={async () => {
+                            if (window.confirm("Reject password reset request?")) {
+                              try {
+                                await usaRejectPasswordReset(r.id);
+                                alert("Rejected.");
+                                loadResets();
+                              } catch (err) {
+                                alert("Error: " + err.message);
+                              }
+                            }
+                          }} style={{ background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.3)", color: C.red, padding: "4px 8px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>Reject</button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}

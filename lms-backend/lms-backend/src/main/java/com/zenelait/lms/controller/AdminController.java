@@ -16,6 +16,7 @@ import com.zenelait.lms.service.student.StudentAuthService;
 import com.zenelait.lms.service.teacher.TeacherAuthService;
 import com.zenelait.lms.service.subscription.SubscriptionService;
 import com.zenelait.lms.exception.BadRequestException;
+import com.zenelait.lms.service.mail.EmailService;
 
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
@@ -69,6 +70,9 @@ public class AdminController {
     private final SubscriptionService        subscriptionService;
     private final LeaveDayRepository         leaveDayRepository;
     private final com.zenelait.lms.service.notification.AttendanceNotificationScheduler attendanceNotificationScheduler;
+    private final ForgotPasswordRequestRepository forgotPasswordRequestRepository;
+    private final OtpVerificationRepository otpVerificationRepository;
+    private final EmailService emailService;
 
     // ── Dashboard Stats ──────────────────────────────────────────────
     @GetMapping("/stats")
@@ -1697,6 +1701,83 @@ public class AdminController {
     @GetMapping("/leaves")
     public ResponseEntity<ApiResponse<List<LeaveDay>>> getLeaves(@AuthenticationPrincipal Admin admin) {
         return ResponseEntity.ok(ApiResponse.ok(leaveDayRepository.findAll()));
+    }
+
+    // ── Password Reset Approval Endpoints (Super Admin Only) ──────────────────
+    @GetMapping("/password-reset-requests")
+    public ResponseEntity<ApiResponse<List<ForgotPasswordRequest>>> getPendingResets(
+            @AuthenticationPrincipal Admin admin) {
+        if (!admin.isSuperAdmin()) {
+            throw new BadRequestException("Access Denied: Only Super Admins can view password reset requests.");
+        }
+        return ResponseEntity.ok(ApiResponse.ok(
+            forgotPasswordRequestRepository.findByTargetAndOrganizationIdAndStatus("SUPER_ADMIN", admin.getOrganizationId(), "PENDING")
+        ));
+    }
+
+    @PostMapping("/password-reset-requests/{id}/approve")
+    public ResponseEntity<ApiResponse<Void>> approveReset(
+            @PathVariable Long id,
+            @AuthenticationPrincipal Admin admin) {
+        if (!admin.isSuperAdmin()) {
+            throw new BadRequestException("Access Denied: Only Super Admins can approve password reset requests.");
+        }
+        ForgotPasswordRequest req = forgotPasswordRequestRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Request not found"));
+        if (!admin.getOrganizationId().equals(req.getOrganizationId()) || !"SUPER_ADMIN".equals(req.getTarget())) {
+            throw new BadRequestException("Access Denied: Request is not within your organization.");
+        }
+        if (!"PENDING".equals(req.getStatus())) {
+            throw new BadRequestException("Request is not pending");
+        }
+        
+        req.setStatus("APPROVED");
+        req.setApprovedBy(admin.getEmail());
+        req.setApprovedAt(java.time.LocalDateTime.now());
+        forgotPasswordRequestRepository.save(req);
+
+        // Generate and save OTP
+        otpVerificationRepository.deleteByEmailAndRole(req.getEmail(), req.getRole());
+        String otp = String.format("%06d", new java.util.Random().nextInt(999999));
+        otpVerificationRepository.save(OtpVerification.builder()
+                .email(req.getEmail())
+                .role(req.getRole())
+                .otp(otp)
+                .expiryTime(java.time.LocalDateTime.now().plusMinutes(10))
+                .build());
+
+        // Send email
+        String name = "";
+        switch (req.getRole()) {
+            case "STUDENT" -> name = studentRepository.findByEmail(req.getEmail()).map(Student::getName).orElse("");
+            case "TEACHER" -> name = teacherRepository.findByEmail(req.getEmail()).map(Teacher::getName).orElse("");
+            case "PARENT" -> name = parentRepository.findByEmail(req.getEmail()).map(Parent::getName).orElse("");
+            case "ADMIN" -> name = adminRepository.findByEmail(req.getEmail()).map(Admin::getName).orElse("");
+        }
+        String emailBody = emailService.forgotPasswordOtpEmail(name, otp);
+        emailService.send(req.getEmail(), "Password Reset Verification Code - ZenelaitLMS", emailBody);
+
+        return ResponseEntity.ok(ApiResponse.ok("Request approved. OTP sent to user.", null));
+    }
+
+    @PostMapping("/password-reset-requests/{id}/reject")
+    public ResponseEntity<ApiResponse<Void>> rejectReset(
+            @PathVariable Long id,
+            @AuthenticationPrincipal Admin admin) {
+        if (!admin.isSuperAdmin()) {
+            throw new BadRequestException("Access Denied: Only Super Admins can reject password reset requests.");
+        }
+        ForgotPasswordRequest req = forgotPasswordRequestRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Request not found"));
+        if (!admin.getOrganizationId().equals(req.getOrganizationId()) || !"SUPER_ADMIN".equals(req.getTarget())) {
+            throw new BadRequestException("Access Denied: Request is not within your organization.");
+        }
+        if (!"PENDING".equals(req.getStatus())) {
+            throw new BadRequestException("Request is not pending");
+        }
+        req.setStatus("REJECTED");
+        forgotPasswordRequestRepository.save(req);
+        return ResponseEntity.ok(ApiResponse.ok("Request rejected.", null));
     }
 
     @PostMapping("/leaves")

@@ -8,7 +8,9 @@ import com.zenelait.lms.service.parent.ParentAuthService;
 import com.zenelait.lms.service.student.StudentAuthService;
 import com.zenelait.lms.service.teacher.TeacherAuthService;
 import com.zenelait.lms.service.ultrasuperadmin.UltraSuperAdminAuthService;
+import com.zenelait.lms.entity.ForgotPasswordRequest;
 import com.zenelait.lms.entity.OtpVerification;
+import com.zenelait.lms.repository.ForgotPasswordRequestRepository;
 import com.zenelait.lms.repository.OtpVerificationRepository;
 import com.zenelait.lms.repository.StudentRepository;
 import com.zenelait.lms.repository.TeacherRepository;
@@ -69,6 +71,7 @@ public class AuthController {
     private final ParentRepository parentRepository;
     private final AdminRepository adminRepository;
     private final UltraSuperAdminRepository usaRepository;
+    private final ForgotPasswordRequestRepository forgotPasswordRequestRepository;
     
  // ══════════════════════════════════════════════════════════════════
     // ULTRA SUPER ADMIN  — login + refresh only (register is protected)
@@ -202,6 +205,9 @@ public class AuthController {
 
         String role = roleStr.toUpperCase();
         String name = "";
+        Long organizationId = null;
+        String target = "SUPER_ADMIN";
+        boolean bypassApproval = false;
 
         // Verify user exists based on role
         switch (role) {
@@ -209,51 +215,79 @@ public class AuthController {
                 var student = studentRepository.findByEmail(email)
                         .orElseThrow(() -> new BadRequestException("No Student account found with email: " + email));
                 name = student.getName();
+                organizationId = student.getOrganizationId();
                 break;
             case "TEACHER":
                 var teacher = teacherRepository.findByEmail(email)
                         .orElseThrow(() -> new BadRequestException("No Teacher account found with email: " + email));
                 name = teacher.getName();
+                organizationId = teacher.getOrganizationId();
                 break;
             case "PARENT":
                 var parent = parentRepository.findByEmail(email)
                         .orElseThrow(() -> new BadRequestException("No Parent account found with email: " + email));
                 name = parent.getName();
+                organizationId = parent.getOrganizationId();
                 break;
             case "ADMIN":
                 var admin = adminRepository.findByEmail(email)
                         .orElseThrow(() -> new BadRequestException("No Admin account found with email: " + email));
                 name = admin.getName();
+                organizationId = admin.getOrganizationId();
+                if (admin.isSuperAdmin()) {
+                    target = "ULTRA_SUPER_ADMIN";
+                }
                 break;
             case "ULTRA_SUPER_ADMIN":
                 var usa = usaRepository.findByEmail(email)
                         .orElseThrow(() -> new BadRequestException("No Ultra Super Admin account found with email: " + email));
                 name = usa.getName();
+                bypassApproval = true;
                 break;
             default:
                 throw new BadRequestException("Invalid role specified: " + role);
         }
 
-        // Clean up old OTPs for this email and role
-        otpVerificationRepository.deleteByEmailAndRole(email, role);
+        if (bypassApproval) {
+            // Clean up old OTPs for this email and role
+            otpVerificationRepository.deleteByEmailAndRole(email, role);
 
-        // Generate 6 digit OTP
-        String otp = String.format("%06d", new Random().nextInt(999999));
+            // Generate 6 digit OTP
+            String otp = String.format("%06d", new Random().nextInt(999999));
 
-        // Save new OTP
-        OtpVerification otpVerification = OtpVerification.builder()
-                .email(email)
-                .role(role)
-                .otp(otp)
-                .expiryTime(LocalDateTime.now().plusMinutes(10))
-                .build();
-        otpVerificationRepository.save(otpVerification);
+            // Save new OTP
+            OtpVerification otpVerification = OtpVerification.builder()
+                    .email(email)
+                    .role(role)
+                    .otp(otp)
+                    .expiryTime(LocalDateTime.now().plusMinutes(10))
+                    .build();
+            otpVerificationRepository.save(otpVerification);
 
-        // Send email
-        String emailBody = emailService.forgotPasswordOtpEmail(name, otp);
-        emailService.send(email, "Password Reset Verification Code - ZenelaitLMS", emailBody);
+            // Send email
+            String emailBody = emailService.forgotPasswordOtpEmail(name, otp);
+            emailService.send(email, "Password Reset Verification Code - ZenelaitLMS", emailBody);
 
-        return ResponseEntity.ok(ApiResponse.ok("OTP sent to your email successfully", null));
+            return ResponseEntity.ok(ApiResponse.ok("OTP sent to your email successfully", null));
+        } else {
+            // Delete old pending/approved password reset requests
+            forgotPasswordRequestRepository.deleteByEmailAndRole(email, role);
+
+            // Create new request
+            ForgotPasswordRequest req = ForgotPasswordRequest.builder()
+                    .email(email)
+                    .role(role)
+                    .organizationId(organizationId)
+                    .target(target)
+                    .status("PENDING")
+                    .build();
+            forgotPasswordRequestRepository.save(req);
+
+            String msg = target.equals("ULTRA_SUPER_ADMIN")
+                    ? "Your password reset request has been submitted for approval to the Ultra Super Admin. You will receive an OTP email once approved."
+                    : "Your password reset request has been submitted for approval to your organization's Super Admin. You will receive an OTP email once approved.";
+            return ResponseEntity.ok(ApiResponse.ok(msg, null));
+        }
     }
 
     @PostMapping("/reset-password")
@@ -319,6 +353,13 @@ public class AuthController {
 
         // Delete OTP
         otpVerificationRepository.delete(otpVerification);
+
+        // Mark forgot password request as COMPLETED
+        forgotPasswordRequestRepository.findFirstByEmailAndRoleAndStatusOrderByCreatedAtDesc(email, role, "APPROVED")
+                .ifPresent(req -> {
+                    req.setStatus("COMPLETED");
+                    forgotPasswordRequestRepository.save(req);
+                });
 
         return ResponseEntity.ok(ApiResponse.ok("Password reset successful", null));
     }

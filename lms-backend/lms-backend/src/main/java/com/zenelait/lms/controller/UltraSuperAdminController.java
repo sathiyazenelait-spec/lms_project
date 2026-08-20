@@ -17,8 +17,12 @@ import com.zenelait.lms.dto.request.FeatureRequest;
 import com.zenelait.lms.entity.SubscriptionPackage;
 import com.zenelait.lms.entity.OrganizationSubscription;
 import com.zenelait.lms.service.subscription.SubscriptionService;
-import com.zenelait.lms.exception.ResourceNotFoundException;
-import java.util.Set;
+import com.zenelait.lms.entity.ForgotPasswordRequest;
+import com.zenelait.lms.entity.OtpVerification;
+import com.zenelait.lms.repository.ForgotPasswordRequestRepository;
+import com.zenelait.lms.repository.OtpVerificationRepository;
+import com.zenelait.lms.repository.AdminRepository;
+import com.zenelait.lms.service.mail.EmailService;
 import com.zenelait.lms.service.ultrasuperadmin.UltraSuperAdminAuthService;
 import com.zenelait.lms.service.ultrasuperadmin.UltraSuperAdminService;
 import jakarta.validation.Valid;
@@ -64,6 +68,10 @@ public class UltraSuperAdminController {
     private final SubscriptionService       subscriptionService;
     private final com.zenelait.lms.repository.NotificationRepository notificationRepository;
     private final com.zenelait.lms.repository.ContactMessageRepository contactMessageRepository;
+    private final ForgotPasswordRequestRepository forgotPasswordRequestRepository;
+    private final OtpVerificationRepository otpVerificationRepository;
+    private final AdminRepository adminRepository;
+    private final EmailService emailService;
 
     // ── Profile ───────────────────────────────────────────────────────────────
     @GetMapping("/profile")
@@ -337,5 +345,59 @@ public class UltraSuperAdminController {
         }
         contactMessageRepository.deleteById(id);
         return ResponseEntity.ok(ApiResponse.ok("Message deleted successfully", null));
+    }
+
+    // ── Password Reset Approval Endpoints (Ultra Super Admin) ─────────────────
+    @GetMapping("/password-reset-requests")
+    public ResponseEntity<ApiResponse<List<ForgotPasswordRequest>>> getPendingResets() {
+        return ResponseEntity.ok(ApiResponse.ok(
+            forgotPasswordRequestRepository.findByTargetAndStatus("ULTRA_SUPER_ADMIN", "PENDING")
+        ));
+    }
+
+    @PostMapping("/password-reset-requests/{id}/approve")
+    public ResponseEntity<ApiResponse<Void>> approveReset(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UltraSuperAdmin usa) {
+        ForgotPasswordRequest req = forgotPasswordRequestRepository.findById(id)
+                .orElseThrow(() -> new com.zenelait.lms.exception.ResourceNotFoundException("Request not found"));
+        if (!"PENDING".equals(req.getStatus())) {
+            throw new com.zenelait.lms.exception.BadRequestException("Request is not pending");
+        }
+        
+        req.setStatus("APPROVED");
+        req.setApprovedBy(usa.getEmail());
+        req.setApprovedAt(java.time.LocalDateTime.now());
+        forgotPasswordRequestRepository.save(req);
+
+        // Generate and save OTP
+        otpVerificationRepository.deleteByEmailAndRole(req.getEmail(), req.getRole());
+        String otp = String.format("%06d", new java.util.Random().nextInt(999999));
+        otpVerificationRepository.save(OtpVerification.builder()
+                .email(req.getEmail())
+                .role(req.getRole())
+                .otp(otp)
+                .expiryTime(java.time.LocalDateTime.now().plusMinutes(10))
+                .build());
+
+        // Send email
+        String name = adminRepository.findByEmail(req.getEmail()).map(Admin::getName).orElse("");
+        String emailBody = emailService.forgotPasswordOtpEmail(name, otp);
+        emailService.send(req.getEmail(), "Password Reset Verification Code - ZenelaitLMS", emailBody);
+
+        return ResponseEntity.ok(ApiResponse.ok("Request approved. OTP sent to user.", null));
+    }
+
+    @PostMapping("/password-reset-requests/{id}/reject")
+    public ResponseEntity<ApiResponse<Void>> rejectReset(
+            @PathVariable Long id) {
+        ForgotPasswordRequest req = forgotPasswordRequestRepository.findById(id)
+                .orElseThrow(() -> new com.zenelait.lms.exception.ResourceNotFoundException("Request not found"));
+        if (!"PENDING".equals(req.getStatus())) {
+            throw new com.zenelait.lms.exception.BadRequestException("Request is not pending");
+        }
+        req.setStatus("REJECTED");
+        forgotPasswordRequestRepository.save(req);
+        return ResponseEntity.ok(ApiResponse.ok("Request rejected.", null));
     }
 }

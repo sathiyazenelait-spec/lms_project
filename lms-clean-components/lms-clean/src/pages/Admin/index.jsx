@@ -74,6 +74,7 @@ import {
   checkMeetingConflicts, submitOpinionResponse, markMeetingAttendance,
   selfCheckInMeeting, sendAbsenteeFollowUp,
   adminGetActiveSubscription, adminGetPackages, adminSubscribe,
+  adminGetPasswordResets, adminApprovePasswordReset, adminRejectPasswordReset,
   getOrganizations,
   getAdminLeaves, createAdminLeave, deleteAdminLeave, getCourseWorkingDays
 } from "../../api/auth";
@@ -5344,7 +5345,14 @@ export const AdminSubscription = ({ onNav }) => {
             await adminSubscribe(packageId);
             alert("✅ Payment successful! Subscription updated successfully!");
             setShowUpgradeModal(false);
-            loadData();
+            const auth = JSON.parse(localStorage.getItem("zenelait-auth") || "{}");
+            if (auth.trialExpired) {
+              auth.trialExpired = false;
+              localStorage.setItem("zenelait-auth", JSON.stringify(auth));
+              window.location.reload();
+            } else {
+              loadData();
+            }
           } catch (err) {
             alert("Error updating subscription: " + err.message);
           } finally {
@@ -5818,11 +5826,96 @@ export const AdminLeaves = () => {
   );
 };
 
+export const AdminPasswordResets = () => {
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const loadResets = async () => {
+    setLoading(true);
+    try {
+      const data = await adminGetPasswordResets();
+      setRequests(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadResets();
+  }, []);
+
+  const handleApprove = async (id) => {
+    if (!confirmAction("Are you sure you want to approve this password reset request?")) return;
+    try {
+      await adminApprovePasswordReset(id);
+      alert("Approved successfully. Verification OTP has been emailed to the user.");
+      loadResets();
+    } catch (err) {
+      alert("Error: " + err.message);
+    }
+  };
+
+  const handleReject = async (id) => {
+    if (!confirmAction("Are you sure you want to reject this password reset request?")) return;
+    try {
+      await adminRejectPasswordReset(id);
+      alert("Request rejected.");
+      loadResets();
+    } catch (err) {
+      alert("Error: " + err.message);
+    }
+  };
+
+  return (
+    <div style={{ animation: "usaFadeUp .35s ease" }}>
+      <PageHeader title="Password Reset Requests" subtitle="Manage and approve password reset requests from staff, teachers, students, and parents" />
+      <Card style={{ padding: 24, marginTop: 20 }}>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", color: "#fff" }}>
+            <thead>
+              <tr style={{ borderBottom: `1px solid ${T.border}`, textAlign: "left" }}>
+                <th style={{ padding: 12, fontSize: 12, color: T.muted }}>Email</th>
+                <th style={{ padding: 12, fontSize: 12, color: T.muted }}>Role</th>
+                <th style={{ padding: 12, fontSize: 12, color: T.muted }}>Requested At</th>
+                <th style={{ padding: 12, fontSize: 12, color: T.muted, textAlign: "right" }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan="4" style={{ padding: 20, textAlign: "center", color: T.muted }}>Loading requests...</td></tr>
+              ) : requests.length === 0 ? (
+                <tr><td colSpan="4" style={{ padding: 20, textAlign: "center", color: T.muted }}>No pending requests.</td></tr>
+              ) : (
+                requests.map(r => (
+                  <tr key={r.id} style={{ borderBottom: `1px solid ${T.border}` }}>
+                    <td style={{ padding: 12, fontSize: 13, fontWeight: 600 }}>{r.email}</td>
+                    <td style={{ padding: 12 }}><span style={{ background: "rgba(245,158,11,.1)", color: "#F59E0B", padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 700 }}>{r.role}</span></td>
+                    <td style={{ padding: 12, fontSize: 12, color: T.muted }}>{new Date(r.createdAt).toLocaleString()}</td>
+                    <td style={{ padding: 12, textAlign: "right" }}>
+                      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                        <Btn variant="primary" size="sm" onClick={() => handleApprove(r.id)}>Approve</Btn>
+                        <Btn variant="ghost" size="sm" onClick={() => handleReject(r.id)} style={{ color: T.accentR }}>Reject</Btn>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
 // ─── ADMIN PAGES WRAPPER ──────────────────────────────────────────────────────
 const ADMIN_PAGES = {
   overview:       { comp: AdminOverview       },
   profile:        { comp: AdminProfile        },
   subscription:   { comp: AdminSubscription   },
+  password_resets:{ comp: AdminPasswordResets },
   departments:    { comp: AdminDepartments    },
   users:          { comp: AdminUsers          },
   courses:        { comp: AdminCourses        },
@@ -5843,13 +5936,16 @@ const ADMIN_PAGES = {
 };
 
 const AdminDashboard = ({ onLogout }) => {
+  const authData = JSON.parse(localStorage.getItem("zenelait-auth") || "{}");
+  const isTrialExpired = authData.trialExpired === true;
+
   const [page, setPage] = useState("overview");
   const [showSubscriptionAlert, setShowSubscriptionAlert] = useState(false);
   const [expiringSub, setExpiringSub] = useState(null);
 
   useEffect(() => {
     const checkSub = async () => {
-      const authData = JSON.parse(localStorage.getItem("zenelait-auth") || "{}");
+      if (isTrialExpired) return;
       if (authData.superAdmin === true) {
         try {
           const sub = await adminGetActiveSubscription();
@@ -5870,7 +5966,7 @@ const AdminDashboard = ({ onLogout }) => {
   }, []);
 
   useEffect(() => {
-    const authData = JSON.parse(localStorage.getItem("zenelait-auth") || "{}");
+    if (isTrialExpired) return;
     const isSuperAdmin = authData.superAdmin === true;
     if (page === "revenue" && !isSuperAdmin) {
       setPage("overview");
@@ -5898,6 +5994,48 @@ const AdminDashboard = ({ onLogout }) => {
       }
     }
   }, [page]);
+
+  if (isTrialExpired) {
+    return (
+      <div style={{
+        minHeight: "100vh",
+        background: T.bg,
+        color: "#fff",
+        fontFamily: "'DM Sans', sans-serif",
+        display: "flex",
+        flexDirection: "column",
+      }}>
+        {/* Simple Top Bar */}
+        <header style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "16px 24px",
+          borderBottom: `1px solid ${T.border}`,
+          background: T.bg2
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: "linear-gradient(135deg,#F59E0B,#EF4444)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>🌐</div>
+            <div style={{ fontFamily: "Syne", fontSize: 14, fontWeight: 900 }}>Zenelait LMS</div>
+          </div>
+          <button onClick={onLogout} style={{ background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.2)", color: "#FCA5A5", padding: "8px 16px", borderRadius: 8, fontSize: 12, cursor: "pointer", fontWeight: 600 }}>🚪 Logout</button>
+        </header>
+
+        <main style={{ flex: 1, padding: "40px 24px", maxWidth: 1000, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
+          <div style={{ textAlign: "center", marginBottom: 32 }}>
+            <span style={{ fontSize: 48 }}>⚠️</span>
+            <h2 style={{ fontFamily: "Syne", fontSize: 24, fontWeight: 900, color: "#fff", margin: "12px 0 6px" }}>3-Day Trial Expired</h2>
+            <p style={{ color: T.muted, fontSize: 14, margin: "8px 0 0", lineHeight: 1.5 }}>
+              Your academy's free trial period has ended. To resume services, please select and subscribe to one of our premium plans managed by the platform administrator.
+            </p>
+          </div>
+
+          {/* Render the subscription packages block directly! */}
+          <AdminSubscription onNav={() => {}} />
+        </main>
+      </div>
+    );
+  }
 
   const { comp: Comp } = ADMIN_PAGES[page] || ADMIN_PAGES.overview;
   return (

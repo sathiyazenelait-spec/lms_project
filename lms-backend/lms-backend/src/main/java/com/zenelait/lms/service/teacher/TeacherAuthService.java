@@ -105,6 +105,10 @@ public class TeacherAuthService {
             throw new BadRequestException("Your teacher account has been deactivated.");
         }
 
+        if (isTrialExpired(teacher)) {
+            throw new BadRequestException("Your organization's trial has expired. Please contact your administrator.");
+        }
+
         if (!passwordEncoder.matches(req.getPassword(), teacher.getPassword())) {
             throw new BadRequestException("Invalid credentials. Wrong password.");
         }
@@ -122,6 +126,10 @@ public class TeacherAuthService {
             throw new BadRequestException("Refresh token expired or invalid");
         }
 
+        if (isTrialExpired(teacher)) {
+            throw new BadRequestException("Your organization's trial has expired. Please contact your administrator.");
+        }
+
         return AuthResponse.builder()
                 .accessToken(jwtUtils.generateToken(teacher))
                 .refreshToken(refreshToken)
@@ -136,6 +144,12 @@ public class TeacherAuthService {
     }
 
     // ── Helpers ───────────────────────────────────────────────────────
+    private boolean isTrialExpired(Teacher teacher) {
+        if (teacher.getOrganizationId() == null) return false;
+        Organization org = organizationRepository.findById(teacher.getOrganizationId()).orElse(null);
+        return org != null && org.isDemo() && org.getDemoEndDate() != null && org.getDemoEndDate().isBefore(java.time.LocalDateTime.now());
+    }
+
     private AuthResponse buildResponse(Teacher teacher) {
         return AuthResponse.builder()
                 .accessToken(jwtUtils.generateToken(teacher))
